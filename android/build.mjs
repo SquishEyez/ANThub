@@ -5,7 +5,7 @@
 //
 // Steps: extract the web bundle from the APK, prettify it so patches are
 // stable, apply src/patches.mjs, inject src/ext.jsx + src/ext.css, minify,
-// and write a new unsigned APK (dist/antelope-hub-4.4-unsigned.apk) plus the web
+// and write a new unsigned APK (dist/antelope-hub-1.0-unsigned.apk) plus the web
 // folder (dist/web) for testing in a browser. Sign with sign.sh.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -116,7 +116,7 @@ console.log(`web bundle: ${newJs} (${(min.code.length / 1024).toFixed(0)} KB), $
 if (webOnly) process.exit(0);
 
 // 5. release hardening: correct version metadata, no WebView remote debugging, no mixed content
-execFileSync("python3", ["-I", path.join(here, "axml.py"), "patch", path.join(tmp, "AndroidManifest.xml"), path.join(tmp, "AndroidManifest.xml"), "versionCode=11", "versionName=4.4"], { stdio: "inherit" });
+execFileSync("python3", ["-I", path.join(here, "axml.py"), "patch", path.join(tmp, "AndroidManifest.xml"), path.join(tmp, "AndroidManifest.xml"), "versionCode=12", "versionName=1.0.0"], { stdio: "inherit" });
 const capPath = path.join(tmp, "assets/capacitor.config.json");
 const cap = JSON.parse(fs.readFileSync(capPath, "utf8"));
 cap.android = { ...(cap.android || {}), webContentsDebuggingEnabled: false, allowMixedContent: false };
@@ -126,6 +126,6 @@ execFileSync("python3", ["-I", path.join(here, "arsc.py"), path.join(tmp, "resou
 fs.writeFileSync(capPath, JSON.stringify(cap, null, "\t"));
 
 // 6. repack: keep every entry's original compression (resources.arsc etc. stay stored)
-execFileSync("python3", ["-I", path.join(here, "repack.py"), path.resolve(apkIn), tmp, path.join(dist, "antelope-hub-4.4-unsigned.apk")], {
+execFileSync("python3", ["-I", path.join(here, "repack.py"), path.resolve(apkIn), tmp, path.join(dist, "antelope-hub-1.0-unsigned.apk")], {
   stdio: "inherit",
 });

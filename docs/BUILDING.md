@@ -27,9 +27,9 @@ The Linux app (`desktop/`) runs the same web bundle in Electron.
 ```
 
 Outputs:
-- `android/dist/antelope-hub-4.4-unsigned.apk` (sign it, see below)
+- `android/dist/antelope-hub-1.0-unsigned.apk` (sign it, see below)
 - `android/dist/web/`: the web bundle, which you can serve with any static server to test in a browser
-- `desktop/release/antelope-hub-4.4.0-x86_64.AppImage` and `desktop/release/antelope-hub-4.4.0-amd64.deb`
+- `desktop/release/antelope-hub-1.0.0-x86_64.AppImage` and `desktop/release/antelope-hub-1.0.0-amd64.deb`
 
 ## Sign the APK
 

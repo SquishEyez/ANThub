@@ -1,7 +1,7 @@
 {
   "name": "antelope-hub",
   "productName": "Antelope Hub",
-  "version": "4.4.0",
+  "version": "1.0.0",
   "description": "Antelope Hub: multi-chain wallet, bridges, NFTs, drops, creator studio, contract console and asset rescue for WAX, EOS, Telos, XPR Network and Libre",
   "homepage": "https://github.com/SquishEyez/WAXhub",
   "license": "MIT",

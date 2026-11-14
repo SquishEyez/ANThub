@@ -27,9 +27,9 @@
 
 | Platform | File | How to install |
 |---|---|---|
-| **Android** 6.0+ | `antelope-hub-4.4.0.apk` | Open the file on your phone and allow installs from your browser or file manager if Android asks. |
-| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | `antelope-hub-4.4.0-amd64.deb` | `sudo apt install ./antelope-hub-4.4.0-amd64.deb`, then open **Antelope Hub** from your apps menu. |
-| **Linux** (any distro) | `antelope-hub-4.4.0-x86_64.AppImage` | `chmod +x antelope-hub-4.4.0-x86_64.AppImage && ./antelope-hub-4.4.0-x86_64.AppImage` |
+| **Android** 6.0+ | `antelope-hub-1.0.0.apk` | Open the file on your phone and allow installs from your browser or file manager if Android asks. |
+| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | `antelope-hub-1.0.0-amd64.deb` | `sudo apt install ./antelope-hub-1.0.0-amd64.deb`, then open **Antelope Hub** from your apps menu. |
+| **Linux** (any distro) | `antelope-hub-1.0.0-x86_64.AppImage` | `chmod +x antelope-hub-1.0.0-x86_64.AppImage && ./antelope-hub-1.0.0-x86_64.AppImage` |
 
 All files are on the [Releases page](../../releases/latest). Check your download against `SHA256SUMS.txt` on the same page:
 
