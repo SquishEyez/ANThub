@@ -1,5 +1,109 @@
 # Changelog
 
+## 4.4.0: XPR Network DeFi
+
+Built from the [XPR Network developer skill](https://github.com/XPRNetwork/xpr-network-dev-skill) and dry-run against XPR mainnet.
+
+### New
+- **XPR DeFi** (XPR only): LOAN lending (supply, withdraw, borrow, repay, claim rewards; health factor from on-chain markets and the `oracles` feeds, capped at 1.25), SimpleDEX (swap via `swap:POOL:MIN_OUT:IS_A_IN` net of the protocol fee, `remliquidity`, `withdrawdep`), Metal X open orders (`cancelorder`, `withdrawall`), oracle prices, WebAuth profiles and KYC (`eosio.proton` `usersinfo`).
+- **Rescue & recover (XPR)**: LOAN rewards and supply, unfinished SimpleDEX deposits, SimpleDEX liquidity, open Metal X orders.
+
+### Fixed
+- Producer voting: only registered, active producers are listed (an inactive one made the vote fail). On XPR Network exactly 4 producers are required for staking rewards, and the claim uses `voterclaim`.
+- XPR Network: transfers to `dex` with a memo are blocked (Metal X keeps them without crediting them).
+
+## 4.3.1: tested against live contracts
+
+Every major transaction was dry-run against the real contracts with `compute_transaction` (Jungle 4 testnet and each mainnet's current state; nothing signed or broadcast). See `tests/dryrun/`.
+
+### Fixed
+- EOS (Vaulta): REX `deposit`/`withdraw` are refused by `eosio` since the rebrand. Lending and REX fund withdrawals now use `core.vaulta` in A (EOS is converted in the same transaction when needed), in Essentials and Rescue.
+- EOS account creation: `newaccount2` leaves the account without RAM; the transaction now adds `core.vaulta::buyrambytes` (4096 bytes).
+- EOS ⇄ A converter: `swapto` to yourself is refused ("cannot transfer to self"); it now transfers to `core.vaulta`, which converts 1:1.
+- Alcor hub send-out enforces the route's minimum.
+- Telos Decide voting explains ballots you can't vote on instead of failing.
+- RPC reads no longer send `Content-Type: application/json`, which forced a CORS preflight that telos/proton/libre.greymass.com reject.
+- Jungle 4: REX and the converter explain that the testnet's `core.vaulta` doesn't convert.
+
+### Housekeeping
+- Unused helpers removed; desktop package homepage points at this repository.
+
+## 4.3.0: Cross-chain with Alcor
+
+### New
+- **Cross-chain** tool: Alcor deposit addresses (verified on the device), cross-chain swaps from `/v1/swap/plan` with an allow-list check before signing, swap deposit addresses (beta) with estimates, and transfer activity with `hop.alcor::recover`.
+- **Rescue & recover**: Alcor transfers waiting to be sent back.
+
+### Changed
+- Bridges → Alcor: transfers to Ethereum, BNB Chain and Polygon include Alcor's courier fee (`<domain>:<address>:<fee>`), so they are delivered without a manual release. Review waits until the fee is loaded.
+- QR codes are generated on the device with qrcode-generator (MIT) instead of an outside service.
+
+## 4.2.0: Telos
+
+### New
+- **Telos studio** (Telos only): guided Telos Decide polls and ballots (`newballot`, `editdetails`, `editminmax`, `togglebal voteliquid`, `openvoting`; fee from the Decide deposit), community voting tokens (`newtreasury`, `edittrsinfo`, `toggle`, `regvoter`, `mint`), Telos Works proposals (`draftprop`, `launchprop`, `submitreport`, `claimfunds`, `nextms`, `cancelprop`, `deleteprop`) and deposit withdrawals.
+- **Creator studio on Telos and Jungle 4**: AtomicAssets collections, schemas and templates are read and decoded straight from the contract tables when no Atomic API is available.
+- **Contract console**: Telos contracts, field help and recipes; `eosio.msig` on every network.
+- **Rescue & recover**: unused Telos Decide and Telos Works deposits.
+
+## 4.1.0
+
+### New
+- **New account** (More → New account, and from the welcome screen): guided account creation for every network. Free sign-up routes, creating from your own account (EOS: `core.vaulta::newaccount2`; WAX, Telos, Jungle 4: `newaccount` + `buyrambytes` + `delegatebw`), or a request for someone else. Keys are generated on the device and never stored; name rules and availability are checked as you type.
+- **Alcor Bridge on WAX, EOS and XPR**: send to Telos, or through Telos to Ethereum, BNB Chain, Polygon or another Antelope chain.
+- **Alcor hub on Telos**: send `wrap.alcor` tokens out on any open route.
+- **Libre USDT** peg-out to Ethereum.
+- **Rescue & recover** lists tokens from old or paused bridges (IBC, Wombat, pNetwork) and links to the right bridge.
+
+### Fixed
+- Only the first bridge on a network could be used: every bridge card now has its own actions, a sign-in button when signed out, and shortcuts to the Console, Rescue and the explorer.
+
+## 4.0.0: Antelope Hub
+
+**WAX Hub is now Antelope Hub**: a fully multi-chain Antelope app. It has a new name, an "A" icon and new splash screens. The Android app id is unchanged, so it updates in place.
+
+### New
+- **Bridges** (More → Bridges): every live and defunct bridge on each network, with live status from on-chain activity and your wrapped balances. Verified actions:
+  - Telos EVM deposit and withdraw.
+  - EOS EVM token deposits.
+  - pNetwork pBTC and pUSDT redemption.
+  - WAX Bridge claims for incoming tokens and NFTs.
+  - Alcor bridge hub claims on Telos.
+  - Libre BTC: deposit address and peg-out.
+- **Telos Decide** in Telos essentials: open governance ballots and one-tap voting (it registers you for the ballot's voting token the first time).
+- **Rescue & recover** finds unclaimed WAX Bridge transfers, linked Telos EVM balances and Alcor bridge claims.
+
+### Changed
+- The app name and the name shown in wallets are now "Antelope Hub". The Linux package is now `antelope-hub` and replaces `wax-hub` when installed.
+
+## 3.1.0: network essentials
+
+Each network now has an **essentials** screen (More → *Network* essentials) for features unique to that chain. Every action was checked against the live contract ABI and recent mainnet transactions.
+
+- **EOS**: REX yield (put EOS into REX, sell matured REX, withdraw your REX fund); gift, transfer or take back RAM; premium-name auctions (check a name, bid, claim refunds when outbid).
+- **Telos**: staking rewards through REX, including moving your staked CPU/NET straight into REX.
+- **XPR Network**: stake and unstake XPR, claim daily staking rewards and refunds, and see whether you qualify (you need to vote for 4 producers). Withdraw balances left in the Metal X exchange.
+- **Libre**: stake LIBRE for a chosen number of days, see APY and payout, claim finished stakes, and vote on Libre DAO proposals.
+- **WAX**: claim voting rewards and genesis WAX.
+- **Jungle 4**: practise REX, RAM gifting and name bids with test tokens.
+- **Rescue & recover** also finds REX funds and matured REX, unclaimed XPR rewards and refunds, Metal X balances, and finished LIBRE stakes.
+- More reliable scans: a check that fails because a node is busy retries once. Extra EOS Nation nodes for EOS and Telos.
+
+## 3.0.0: multi-chain
+
+### New
+- **Works on six Antelope networks**: WAX, EOS (Vaulta), Telos, XPR Network, Libre and the Jungle 4 testnet. Switch from the network chip at the top. Each network uses its own nodes, history, NFT API, core token, price feed and explorer.
+- **Features appear only where their contracts exist.** Every network gets the wallet, Rescue & recover, the Contract console, voting and history. NFTs and the Market appear where AtomicAssets and its API run (WAX, EOS, XPR). Drops, blends and swaps follow the contracts deployed on each chain. WAXDAO, packs and NeftyBlocks drops stay WAX-only.
+- **Rescue & recover** only runs scanners whose contracts exist on the active network.
+- **Free-resource chains** (XPR, Libre) show "CPU and NET are free" instead of staking and PowerUp.
+- **Jungle 4 testnet** lets people practise with free test tokens.
+- **Vaulta ($A) on EOS**: A and EOS balances, USD value, and a 1:1 **Convert EOS ⇄ A** using the official `core.vaulta::swapto` action (the same action Anchor sends).
+
+### Changed
+- Sign-in offers WAX Cloud Wallet on WAX only. Anchor works on every network.
+- Text and amounts follow the active chain's token symbol and decimals.
+- Privileged accounts with unlimited CPU/NET show "unlimited" instead of `-1`.
+
 ## 2.1.0
 
 ### New

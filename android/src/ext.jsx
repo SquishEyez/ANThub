@@ -1,4 +1,4 @@
-// WAX Hub 2.1 — UX layer.
+// WAX Hub 3.0 — UX layer.
 // This file is compiled with esbuild (jsxFactory De.createElement) and injected
 // into the original app bundle at module scope, so it can use the bundle's own
 // React (`De`), Capacitor (`Dh`, `_2`), chain helpers (`FC`, `k2`) and constants.
@@ -6,10 +6,12 @@
 /* ---------------------------------------------------------------- helpers */
 
 const WH = (() => {
+  const PER_CHAIN = ["recents", "cr.col", "cc.recent"];
   const LS = "waxhub.ux.";
+  const key = (k) => LS + (WHCHAIN.isWax || !PER_CHAIN.includes(k) ? "" : WHCHAIN.key + ".") + k;
   const load = (k, d) => {
     try {
-      const v = localStorage.getItem(LS + k);
+      const v = localStorage.getItem(key(k));
       return v == null ? d : JSON.parse(v);
     } catch {
       return d;
@@ -17,7 +19,7 @@ const WH = (() => {
   };
   const save = (k, v) => {
     try {
-      localStorage.setItem(LS + k, JSON.stringify(v));
+      localStorage.setItem(key(k), JSON.stringify(v));
     } catch {}
   };
 
@@ -44,10 +46,10 @@ const WH = (() => {
   }
 
   /* explorer links */
-  const txUrl = (id) => `https://waxblock.io/transaction/${id}`;
-  const accountUrl = (a) => `https://waxblock.io/account/${a}`;
+  const txUrl = (id) => (WHCHAIN.explorer ? `${WHCHAIN.explorer.tx}${id}` : "");
+  const accountUrl = (a) => (WHCHAIN.explorer ? `${WHCHAIN.explorer.acct}${a}` : "");
 
-  /* WAX account names: 1-12 chars of a-z, 1-5 and dots, not ending in a dot */
+  /* Antelope account names: 1-12 chars of a-z, 1-5 and dots, not ending in a dot */
   function checkAccountName(raw) {
     const v = String(raw || "").trim().toLowerCase();
     if (!v) return { ok: false, msg: "" };
@@ -63,10 +65,10 @@ const WH = (() => {
     [/user (cancel|reject|denied|declined)|request (was )?(cancel|reject|denied)|modal closed|cancelled by user/i,
       { title: "Request cancelled", hint: "Nothing was sent. You declined or closed the wallet window." }],
     [/billed cpu|cpu usage|tx_cpu_usage|deadline exceeded|leeway_deadline/i,
-      { title: "Not enough CPU", hint: "Your account ran out of CPU for now. Rent some with PowerUp (cheap, lasts 24h) or stake WAX to CPU, then try again.",
+      { title: "Not enough CPU", hint: "Your account ran out of CPU for now. Rent some with PowerUp (cheap, lasts 24h) or stake " + WHCHAIN.sym + " to CPU, then try again.",
         action: { label: "Get CPU with PowerUp", nav: { tab: "more", tool: "tools", sub: "power" } } }],
     [/net usage|tx_net_usage/i,
-      { title: "Not enough NET", hint: "Your account ran out of NET bandwidth. Use PowerUp or stake a little WAX to NET.",
+      { title: "Not enough NET", hint: "Your account ran out of NET bandwidth. Use PowerUp or stake a little " + WHCHAIN.sym + " to NET.",
         action: { label: "Open PowerUp", nav: { tab: "more", tool: "tools", sub: "power" } } }],
     [/ram_usage_exceeded|insufficient ram|ram usage exceeded/i,
       { title: "Not enough RAM", hint: "This action needs more account storage (RAM). Buy a few KB of RAM and try again.",
@@ -74,7 +76,7 @@ const WH = (() => {
     [/overdrawn balance|no balance object|insufficient (funds|balance)/i,
       { title: "Not enough balance", hint: "You don't have enough of that token to cover this. Check the amount (and fees) and try again." }],
     [/to account does not exist|account .* does not exist|unknown account|account_query_exception/i,
-      { title: "Account not found", hint: "That WAX account doesn't exist. Double-check the spelling." }],
+      { title: "Account not found", hint: "That account doesn't exist on " + WHCHAIN.name + ". Double-check the spelling and the network." }],
     [/missing required authority|unsatisfied_authorization|irrelevant auth|missing authority|unable to find key/i,
       { title: "Wallet couldn't authorise this", hint: "Make sure you're signed in with the account that owns these funds or NFTs, then try again." }],
     [/expired|expired_tx_exception/i,
@@ -86,7 +88,7 @@ const WH = (() => {
     [/symbol precision mismatch/i,
       { title: "Wrong token decimals", hint: "The amount doesn't match this token's decimals. Check the token and try again." }],
     [/failed to fetch|networkerror|network request failed|load failed|aborterror|timed? ?out|err_internet|offline/i,
-      { title: "Network problem", hint: "Couldn't reach the WAX network. Check your connection and try again in a moment." }],
+      { title: "Network problem", hint: "Couldn't reach the " + WHCHAIN.name + " network. Check your connection and try again in a moment." }],
     [/popup|window (was )?(blocked|closed)/i,
       { title: "Wallet window closed", hint: "The wallet window was blocked or closed before you approved. Try again and keep it open." }],
   ];
@@ -190,14 +192,15 @@ const WH = (() => {
     } catch {}
   }
 
-  /* ---- WAX/USD from the Delphi oracle (cached for 5 min) ---- */
+  /* ---- core token / USD from the Delphi oracle (cached for 5 min) ---- */
   let usdCache = { at: 0, v: 0, p: null };
   function waxUsd() {
     if (Date.now() - usdCache.at < 3e5 && usdCache.v) return Promise.resolve(usdCache.v);
     if (usdCache.p) return usdCache.p;
-    usdCache.p = k2("waxpusd")
+    if (!WHCHAIN.delphi) return Promise.resolve(0);
+    usdCache.p = k2(WHCHAIN.delphi)
       .then((m) => {
-        const v = m ? m / 1e4 : 0;
+        const v = m ? m / 10 ** WHCHAIN.delphiPrec : 0;
         usdCache = { at: Date.now(), v, p: null };
         return v;
       })
@@ -328,6 +331,7 @@ function WH_CopyBtn({ text, label, toast, className = "wh-icon-btn" }) {
 }
 
 function WH_Link({ href, children, className = "wh-icon-btn", label }) {
+  if (!href) return null;
   return (
     <a className={className} href={href} target="_blank" rel="noopener noreferrer" aria-label={label} title={label}>
       {children}
@@ -374,7 +378,7 @@ function WH_Toast({ msg, type = "info", onClose }) {
         {f.hint && <div className="wh-toast-hint">{f.hint}</div>}
         {(f.txId || f.action || f.raw) && (
           <div className="wh-toast-actions">
-            {f.txId && (
+            {f.txId && WHCHAIN.explorer && (
               <WH_Link className="wh-chip" href={WH.txUrl(f.txId)}>
                 View on explorer
               </WH_Link>
@@ -516,7 +520,7 @@ function WH_RecipientInput({ value, onChange, self }) {
       />
       {value && !chk.ok && chk.msg && <div className="wh-field-msg err">{chk.msg}</div>}
       {chk.ok && exists === true && <div className="wh-field-msg ok">✓ Account found</div>}
-      {chk.ok && exists === false && <div className="wh-field-msg err">This account doesn't exist on WAX.</div>}
+      {chk.ok && exists === false && <div className="wh-field-msg err">This account doesn't exist on {WHCHAIN.name}.</div>}
       {chk.ok && chk.value === self && <div className="wh-field-msg warn-t">That's your own account.</div>}
       {exchange && (
         <div className="wh-field-msg warn-t">Sending to an exchange? Most exchanges require a memo — copy it exactly from the exchange.</div>
@@ -598,6 +602,10 @@ function WH_UsdLine({ wax }) {
 }
 
 function WH_ResourceHint({ cpu, net, ramUsed, ramMax, mine, onBuyRam }) {
+  if (!WHCHAIN.freeResources && Number(cpu?.max) < 0 && Number(net?.max) < 0)
+    return <div className="wh-health ok">{WH_I.check}<span>This account has unlimited CPU and NET (a privileged system account).</span></div>;
+  if (WHCHAIN.freeResources && !(Number(ramMax) > 0 && Number(ramUsed) / Number(ramMax) >= 0.9))
+    return <div className="wh-health ok">{WH_I.check}<span>CPU and NET are free on {WHCHAIN.name}. You don't need to stake or rent anything.</span></div>;
   const pc = (u, m) => (Number(m) > 0 ? (Number(u) / Number(m)) * 100 : 0);
   const c = pc(cpu?.used, cpu?.max);
   const n = pc(net?.used, net?.max);
@@ -615,13 +623,13 @@ function WH_ResourceHint({ cpu, net, ramUsed, ramMax, mine, onBuyRam }) {
         {items.length > 0 && (
           <div>
             {items.map(([k, v]) => `${k} ${v.toFixed(0)}%`).join(" · ")} used — transactions may fail.{" "}
-            {mine && "PowerUp rents resources for 24h for a few cents of WAX."}
+            {mine && WHCHAIN.powerup && `PowerUp rents resources for 24h for a small amount of ${WHCHAIN.sym}.`}
           </div>
         )}
         {r >= 90 && <div>RAM is {r.toFixed(0)}% full — receiving new NFTs or tokens may need more RAM.</div>}
         {mine && (
           <div className="wh-chips" style={{ marginTop: 8 }}>
-            {items.length > 0 && (
+            {items.length > 0 && WHCHAIN.powerup && (
               <button type="button" className="wh-chip accent" onClick={() => WH.nav({ tab: "more", tool: "tools", sub: "power" })}>
                 PowerUp now
               </button>
@@ -643,8 +651,12 @@ function WH_Welcome({ onSignIn, onLookup }) {
   return (
     <div className="wh-welcome">
       <div className="wh-welcome-glow" />
-      <h2>Your WAX, all in one place</h2>
-      <p>Check balances, manage NFTs, trade on the market, claim drops and use WAXDAO — straight from the chain.</p>
+      <h2>Your {WHCHAIN.name} wallet, all in one place</h2>
+      <p>
+        {WHCHAIN.isWax
+          ? "Check balances, manage NFTs, trade on the market, claim drops and use WAXDAO — straight from the chain."
+          : `Check balances, send tokens${WHCHAIN.hasNfts ? ", manage NFTs" : ""}, rescue stuck assets and use any ${WHCHAIN.name} contract — straight from the chain.`}
+      </p>
       <button type="button" className="btn primary block" onClick={onSignIn}>
         Sign in with a wallet
       </button>
@@ -662,7 +674,7 @@ function WH_Welcome({ onSignIn, onLookup }) {
       >
         <input
           className="input"
-          placeholder="Any WAX account name"
+          placeholder={`Any ${WHCHAIN.name} account name`}
           value={q}
           onChange={(e) => setQ(e.target.value.toLowerCase())}
           autoCapitalize="none"
@@ -677,8 +689,10 @@ function WH_Welcome({ onSignIn, onLookup }) {
           ["NFTs", "See, send, list or burn your NFTs", "nfts"],
           ["Market", "Buy, sell, auction and make offers", "market"],
           ["Drops", "Claim drops, run blends, open packs", "drops"],
-          ["Tools", "PowerUp, voting, swaps, WAXDAO", "more"],
-        ].map(([t, d, tab]) => (
+          ["Tools", WHCHAIN.isWax ? "PowerUp, voting, swaps, WAXDAO" : "Rescue, contract console, voting, history", "more"],
+        ]
+          .filter(([, , tab]) => WHGATE.tab(tab))
+          .map(([t, d, tab]) => (
           <button type="button" key={t} className="wh-feature" onClick={() => WH.nav({ tab })}>
             <b>{t}</b>
             <span>{d}</span>
@@ -699,7 +713,7 @@ function WH_ReceiveActions({ account, toast }) {
         onClick={async () => {
           if (navigator.share) {
             try {
-              await navigator.share({ title: "My WAX account", text: account });
+              await navigator.share({ title: `My ${WHCHAIN.name} account`, text: account });
             } catch {}
           } else {
             const ok = await WH.copy(account);
@@ -786,8 +800,8 @@ function WH_Offline() {
 
 const WH_ONBOARD = [
   {
-    t: "Welcome to WAX Hub",
-    d: "One app for your WAX wallet, NFTs, the AtomicMarket, drops, packs, swaps and WAXDAO — read straight from the blockchain.",
+    t: "Welcome to Antelope Hub",
+    d: "One app for your wallet, NFTs, markets, drops, swaps and stuck-asset rescue on WAX, EOS, Telos, XPR Network and Libre, read straight from the blockchain.",
     art: "◆",
   },
   {
@@ -797,7 +811,7 @@ const WH_ONBOARD = [
   },
   {
     t: "Handy tips",
-    d: "Tap your account chip for copy/sign-out options. Look up any account from the Wallet tab. Low on CPU? PowerUp in More → Chain tools fixes it in seconds.",
+    d: "Switch network from the chip at the top. Tap your account chip for copy and sign-out options. Low on CPU? PowerUp in More → Chain tools fixes it in seconds.",
     art: "✦",
   },
 ];
@@ -843,6 +857,17 @@ function WH_Onboarding({ onDone, onSignIn }) {
             >
               Sign in
             </button>
+            <button
+              type="button"
+              className="btn block"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                finish();
+                WH.nav({ tab: "more", tool: "newacct" });
+              }}
+            >
+              No account yet? Create one
+            </button>
             <button type="button" className="btn ghost block" style={{ marginTop: 8 }} onClick={finish}>
               Explore first
             </button>
@@ -855,21 +880,27 @@ function WH_Onboarding({ onDone, onSignIn }) {
 
 /* Quick actions shown on the More hub */
 const WH_QUICK = [
+  [`${WHCHAIN.name} essentials`, { tool: "native" }],
+  ["Telos studio: polls, DAOs, funding", { tool: "telosstudio" }],
+  ["Receive from other chains", { tool: "alcorx", sub: "receive" }],
+  ["Cross-chain swap", { tool: "alcorx", sub: "swap" }],
+  ["XPR lending & swaps", { tool: "xprdefi" }],
   ["Find stuck assets", { tool: "rescue" }],
+  ["Bridges", { tool: "bridges" }],
   ["Get CPU (PowerUp)", { tool: "tools", sub: "power" }],
   ["Swap tokens", { tool: "dex", sub: "swap" }],
   ["Open packs", { tool: "packs" }],
   ["Vote for producers", { tool: "tools", sub: "vote" }],
   ["Portfolio value", { tool: "tools", sub: "portfolio" }],
   ["Account history", { tool: "tools", sub: "history" }],
-  ["Create an account", { tool: "tools", sub: "account" }],
+  ["Create an account", { tool: "newacct" }],
   ["Mint an NFT", { tool: "creator" }],
   ["Contract console", { tool: "console" }],
 ];
 
 function WH_QuickActions({ query }) {
   const q = String(query || "").trim().toLowerCase();
-  const list = WH_QUICK.filter(([l]) => !q || l.toLowerCase().includes(q));
+  const list = WH_QUICK.filter(([l, tg]) => WHGATE.tool(tg.tool) && (!tg.sub || tg.tool !== "tools" || WHGATE.sub(tg.sub)) && (!q || l.toLowerCase().includes(q)));
   if (!list.length) return null;
   return (
     <>

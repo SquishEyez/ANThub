@@ -704,4 +704,406 @@ export const replace = [
   ],
   [`                          children: B.cpu_weight || "—",`, `                          children: B.cpu_weight ? WH.trimAsset(B.cpu_weight) : "—",`],
   [`                          children: B.net_weight || "—",`, `                          children: B.net_weight ? WH.trimAsset(B.net_weight) : "—",`],
+
+  /* ================================================== MULTI-CHAIN (3.0) */
+  [`z9 = "2.1",`, `z9 = "4.4",`],
+  // Cloud Wallet only exists on WAX; Anchor covers every chain
+  [
+    `      walletPlugins: [
+        new Vz({
+          supportedChains: [Q4],
+          url: "https://www.mycloudwallet.com",
+          loginTimeout: 3e5,
+        }),
+        new vb(),
+      ],`,
+    `      walletPlugins: [
+        ...(WHCHAIN.cloudWallet
+          ? [
+              new Vz({
+                supportedChains: [Q4],
+                url: "https://www.mycloudwallet.com",
+                loginTimeout: 3e5,
+              }),
+            ]
+          : []),
+        new vb(),
+      ],`,
+  ],
+  // chains without LightAPI: go straight to the fallbacks
+  [
+    "    const n = await Wf(`${lM}/${t}`, { method: \"GET\" }, 1e4);",
+    "    if (!lM) throw 0;\n    const n = await Wf(`${lM}/${t}`, { method: \"GET\" }, 1e4);",
+  ],
+  // sign-in sheet
+  [
+    `              N.jsx("button", {
+                className: "btn primary block wh-wallet-btn",`,
+    `              WHCHAIN.cloudWallet &&
+              N.jsx("button", {
+                className: "btn primary block wh-wallet-btn",`,
+  ],
+  [`                className: "btn block wh-wallet-btn",`, "                className: `btn ${WHCHAIN.cloudWallet ? \"\" : \"primary \"}block wh-wallet-btn`,"],
+  [
+    `                      "Connect with WAX Cloud Wallet or Anchor. Your keys stay in the wallet — this app only requests signatures.",`,
+    `                      WHCHAIN.cloudWallet
+                        ? "Connect with WAX Cloud Wallet or Anchor. Your keys stay in the wallet — this app only requests signatures."
+                        : "Connect with Anchor. Your keys stay in the wallet — this app only requests signatures.",`,
+  ],
+  [
+    `                  "Cloud Wallet opens a secure window. Anchor uses a QR code or the Anchor app via a deep link (anchor:// / esr://). You can still browse without signing in.",`,
+    `                  WHCHAIN.cloudWallet
+                    ? "Cloud Wallet opens a secure window. Anchor uses a QR code or the Anchor app via a deep link (anchor:// / esr://). You can still browse without signing in."
+                    : "Anchor uses a QR code, or opens the Anchor app on this device. Make sure your account is added for this network in Anchor. You can still browse without signing in.",`,
+  ],
+  // chain chip in the top bar + chain sheet
+  [
+    `    [whKey, setWhKey] = De.useState(0),`,
+    `    [whKey, setWhKey] = De.useState(0),
+    [whChain, setWhChain] = De.useState(!1),`,
+  ],
+  [
+    "          N.jsxs(\"button\", {\n            className: `account-chip ${D ? \"\" : \"guest\"}`,",
+    "          N.jsx(WH_ChainChip, { onOpen: () => setWhChain(!0) }),\n          N.jsxs(\"button\", {\n            className: `account-chip ${D ? \"\" : \"guest\"}`,",
+  ],
+  [
+    `      N.jsx(WH_AccountSheet, {`,
+    `      N.jsx(WH_ChainSheet, { open: whChain, onClose: () => setWhChain(!1), signedIn: !!D }),
+      N.jsx(WH_AccountSheet, {`,
+  ],
+  // only show tabs and tools this chain supports
+  [
+    `  const [t, e] = De.useState(() => WH.load("tab", "wallet")),
+    [r, n] = De.useState(() => WH.load("tool", null)),`,
+    `  const [t, e] = De.useState(() => {
+      const v = WH.load("tab", "wallet");
+      return WHGATE.tab(v) ? v : "wallet";
+    }),
+    [r, n] = De.useState(() => {
+      const v = WH.load("tool", null);
+      return v && WHGATE.tool(v) ? v : null;
+    }),`,
+  ],
+  [
+    `          ["more", "More"],
+        ].map(([X, ee]) =>`,
+    `          ["more", "More"],
+        ]
+          .filter(([X]) => WHGATE.tab(X))
+          .map(([X, ee]) =>`,
+  ],
+  [
+    `      N.jsx("nav", {
+        className: "nav",`,
+    `      N.jsx("nav", {
+        className: "nav",
+        style: { gridTemplateColumns: \`repeat(\${Object.values(WHGATE.tabs).filter(Boolean).length}, 1fr)\` },`,
+  ],
+  [
+    `    n = tW.filter(
+      (a) =>
+        !r ||`,
+    `    n = tW.filter(
+      (a) =>
+        WHGATE.tool(a.id) &&
+        (!r ||`,
+  ],
+  [
+    "        `${a.title} ${a.blurb} ${a.tag} ${a.keys || \"\"}`.toLowerCase().includes(r),\n    );",
+    "        `${a.title} ${a.blurb} ${a.tag} ${a.keys || \"\"}`.toLowerCase().includes(r)),\n    );",
+  ],
+  // Chain tools sub-tabs
+  [
+    `          ["links", "NFT links"],
+        ].map(([_, A]) =>`,
+    `          ["links", "NFT links"],
+        ]
+          .filter(([k]) => WHGATE.sub(k))
+          .map(([_, A]) =>`,
+  ],
+  [
+    `      WH.takeSub("vote", ["vote", "power", "account", "history", "portfolio", "qr", "watch", "links"]),`,
+    `      WH.takeSub("vote", ["vote", "power", "account", "history", "portfolio", "qr", "watch", "links"].filter(WHGATE.sub)),`,
+  ],
+  // Drops: only the sources deployed on this chain
+  [`    [a, i] = De.useState("nefty"),`, `    [a, i] = De.useState(() => WHGATE.firstDropSource()),`],
+  ...["nefty", "atomic", "hive", "blends"].map((k) => [
+    "          N.jsx(\"button\", {\n            className: `tab ${a === \"" + k + "\" ? \"on\" : \"\"}`,",
+    "          WHGATE.dropSource(\"" + k + "\") &&\n          N.jsx(\"button\", {\n            className: `tab ${a === \"" + k + "\" ? \"on\" : \"\"}`,",
+  ]),
+  // DEX: only providers deployed on this chain; Alcor spot is WAX-only
+  [`    [l, c] = De.useState("alcor"),`, `    [l, c] = De.useState(() => WHGATE.firstSwap()),`],
+  [`              children: ["alcor", "nefty", "taco", "box"].map((T) =>`, `              children: ["alcor", "nefty", "taco", "box"].filter(WHGATE.swap).map((T) =>`],
+  ...["spot", "orders"].map((k) => [
+    "          N.jsx(\"button\", {\n            className: `tab ${i === \"" + k + "\" ? \"on\" : \"\"}`,",
+    "          WHGATE.spot &&\n          N.jsx(\"button\", {\n            className: `tab ${i === \"" + k + "\" ? \"on\" : \"\"}`,",
+  ]),
+  [
+    `          "Live Alcor, Nefty, Taco and Defibox (swap.box) contracts. Swaps are token transfers with verified memos.",`,
+    `          WHCHAIN.isWax
+            ? "Live Alcor, Nefty, Taco and Defibox (swap.box) contracts. Swaps are token transfers with verified memos."
+            : "Alcor AMM swaps on this network. Swaps are token transfers with verified memos.",`,
+  ],
+  // Wallet: staking / RAM / market buttons and resource bars only where they apply
+  [
+    `                      N.jsx("button", {
+                        className: "btn",
+                        onClick: () => {
+                          A() && (D({ cpu: "", net: "" }), w("stake"));
+                        },`,
+    `                      WHCHAIN.staking &&
+                      N.jsx("button", {
+                        className: "btn",
+                        onClick: () => {
+                          A() && (D({ cpu: "", net: "" }), w("stake"));
+                        },`,
+  ],
+  [
+    `                      N.jsx("button", {
+                        className: "btn sm",
+                        onClick: () => {
+                          D({ cpu: "", net: "" }), w("unstake");
+                        },`,
+    `                      WHCHAIN.staking &&
+                      N.jsx("button", {
+                        className: "btn sm",
+                        onClick: () => {
+                          D({ cpu: "", net: "" }), w("unstake");
+                        },`,
+  ],
+  [
+    `                      N.jsx("button", {
+                        className: "btn sm",
+                        onClick: () => {
+                          D({ bytes: "", wax: "", mode: "bytes" }), w("ram");
+                        },`,
+    `                      WHCHAIN.ram &&
+                      N.jsx("button", {
+                        className: "btn sm",
+                        onClick: () => {
+                          D({ bytes: "", wax: "", mode: "bytes" }), w("ram");
+                        },`,
+  ],
+  [
+    `                      N.jsx("button", {
+                        className: "btn sm",
+                        onClick: () => {
+                          D({
+                            amount: ie ? String(ie.amount) : "",`,
+    `                      WHCHAIN.has("atomicmarket") &&
+                      N.jsx("button", {
+                        className: "btn sm",
+                        onClick: () => {
+                          D({
+                            amount: ie ? String(ie.amount) : "",`,
+  ],
+  [
+    `                N.jsx(g1, {
+                  value: Number(F.used || 0),`,
+    `                !WHCHAIN.freeResources &&
+                Number(F.max) >= 0 &&
+                N.jsx(g1, {
+                  value: Number(F.used || 0),`,
+  ],
+  [
+    `                N.jsx(g1, {
+                  value: Number(C.used || 0),`,
+    `                !WHCHAIN.freeResources &&
+                Number(C.max) >= 0 &&
+                N.jsx(g1, {
+                  value: Number(C.used || 0),`,
+  ],
+  [
+    `                N.jsx(g1, {
+                  value: S,
+                  max: h,`,
+    `                h > 0 &&
+                N.jsx(g1, {
+                  value: S,
+                  max: h,`,
+  ],
+  [
+    `                N.jsxs("div", {
+                  className: "stat-grid",`,
+    `                WHCHAIN.staking &&
+                N.jsxs("div", {
+                  className: "stat-grid",`,
+  ],
+  [`          "Balances, transfers, CPU/NET staking and RAM on WAX mainnet.",`, `          WHCHAIN.walletSub,`],
+  // Vaulta ($A) card on networks with core.vaulta
+  [
+    `            N.jsxs("div", {
+              className: "card",
+              children: [
+                N.jsx("h3", { children: "Resources" }),`,
+    `            WHCHAIN.vaulta?.converts &&
+              N.jsx(WH_Vaulta, { balances: f, session: t, account: n, viewing: o, toast: r, onDone: () => oe(o || n) }),
+            N.jsxs("div", {
+              className: "card",
+              children: [
+                N.jsx("h3", { children: "Resources" }),`,
+  ],
+  // per-chain "essentials" screen
+  [
+    `const tW = [
+  {
+    id: "rescue",`,
+    `const tW = [
+  {
+    id: "native",
+    title: \`\${WHCHAIN.name} essentials\`,
+    blurb: {
+      wax: "Claim voting rewards and genesis WAX",
+      eos: "REX yield, gift or transfer RAM, premium-name auctions",
+      telos: "Earn staking rewards with REX",
+      xpr: "Stake XPR for rewards, withdraw from Metal X",
+      libre: "Stake LIBRE for yield, vote in the Libre DAO",
+      jungle4: "Practise REX, RAM gifting and name bids",
+    }[WHCHAIN.key],
+    tag: WHCHAIN.chip,
+    keys: "rex stake staking yield rewards ram gift transfer name auction bid xpr metal libre dao vote native",
+  },
+  {
+    id: "rescue",`,
+  ],
+  [
+    `          t === "more" && r === "rescue" && N.jsx(WH_Rescue, { ...$, onBack: Z }, "rescue" + whKey),`,
+    `          t === "more" && r === "native" && N.jsx(WH_Native, { ...$, onBack: Z }, "native" + whKey),
+          t === "more" && r === "rescue" && N.jsx(WH_Rescue, { ...$, onBack: Z }, "rescue" + whKey),`,
+  ],
+  /* ================================================== Antelope Hub rebrand (4.0) */
+  [`  oM = "WAX Hub",`, `  oM = "Antelope Hub",`],
+  [
+    `              N.jsx("div", { className: "brand-mark", children: "W" }),
+              N.jsx("span", { children: "WAX HUB" }),`,
+    `              N.jsx("div", { className: "brand-mark", children: "A" }),
+              N.jsx("span", { children: "ANTELOPE HUB" }),`,
+  ],
+  [
+    `                    children: "W",
+                  }),
+                  N.jsx("h1", {`,
+    `                    children: "A",
+                  }),
+                  N.jsx("h1", {`,
+  ],
+  [`          "WAX Hub ",`, `          "Antelope Hub ",`],
+  // Bridges tool + guided account creation (4.1)
+  [
+    `  {
+    id: "rescue",
+    title: "Rescue & recover",`,
+    `  {
+    id: "xprdefi",
+    title: "XPR DeFi",
+    blurb: "Lend and borrow on LOAN, swap and manage liquidity on SimpleDEX, cancel Metal X orders, oracle prices and your WebAuth profile",
+    tag: "XPR only",
+    keys: "loan lending borrow supply interest simpledex swap liquidity lp metal x metalx order cancel oracle price kyc profile webauth xpr",
+  },
+  {
+    id: "alcorx",
+    title: "Cross-chain",
+    blurb: "Your own deposit address on Ethereum, BNB Chain, Polygon, TON, NEAR and Sui, and swaps to any token on another chain in one signature (Alcor bridge)",
+    tag: "New",
+    keys: "receive deposit address exchange binance ethereum bnb polygon ton near sui usdc usdt swap cross chain alcor bridge evm",
+  },
+  {
+    id: "telosstudio",
+    title: "Telos studio",
+    blurb: "Run polls, launch a community voting token for your DAO, apply for Telos Works funding and mint Telos NFTs, step by step",
+    tag: "Telos only",
+    keys: "telos decide poll ballot vote dao treasury community token governance works funding proposal grant nft mint",
+  },
+  {
+    id: "newacct",
+    title: "New account",
+    blurb: "Get an account on this network, step by step: free sign-up options, or create one from your account with keys made on your device",
+    tag: "Start here",
+    keys: "create new account sign up signup register keys key pair private public wallet onboarding faucet",
+  },
+  {
+    id: "bridges",
+    title: "Bridges",
+    blurb: "Live and old bridges on this network: move tokens across chains, and find wrapped tokens you still hold",
+    tag: "Cross-chain",
+    keys: "bridge evm ibc ptokens pbtc wrap wrapped bitcoin btc ethereum solana bnb alcor wombat cross chain peg",
+  },
+  {
+    id: "rescue",
+    title: "Rescue & recover",`,
+  ],
+  [
+    `          t === "more" && r === "rescue" && N.jsx(WH_Rescue, { ...$, onBack: Z }, "rescue" + whKey),`,
+    `          t === "more" && r === "newacct" && N.jsx(WH_NewAccount, { ...$, onBack: Z }, "newacct" + whKey),
+          t === "more" && r === "telosstudio" && N.jsx(WH_TelosStudio, { ...$, onBack: Z }, "telosstudio" + whKey),
+          t === "more" && r === "alcorx" && N.jsx(WH_Alcor, { ...$, onBack: Z }, "alcorx" + whKey),
+          t === "more" && r === "xprdefi" && N.jsx(WH_XprDefi, { ...$, onBack: Z }, "xprdefi" + whKey),
+          t === "more" && r === "bridges" && N.jsx(WH_Bridges, { ...$, onBack: Z }, "bridges" + whKey),
+          t === "more" && r === "rescue" && N.jsx(WH_Rescue, { ...$, onBack: Z }, "rescue" + whKey),`,
+  ],
+  /* ================================================== local QR codes (4.3) */
+  [
+    "                src: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(o)}&bgcolor=ffffff&color=0b0c10&qzone=2`,",
+    "                src: WH_qrSrc(o),",
+  ],
+  [
+    "  const e = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(t)}&bgcolor=ffffff&color=0b0c10&qzone=2`;",
+    "  const e = WH_qrSrc(t);",
+  ],
+  /* ================================================== RPC without CORS preflight (4.3.1) */
+  // Antelope nodes read the JSON body either way. Labelling it application/json
+  // forces a CORS preflight, which telos/proton/libre.greymass.com reject (400),
+  // so every read there failed once before falling back to another node.
+  [
+    `      const i = await Wf(a + t, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(e),
+      });`,
+    `      const i = await Wf(a + t, {
+        method: "POST",
+        body: JSON.stringify(e),
+      });`,
+  ],
+  /* ================================================== XPR voting rules (4.4) */
+  // XPR Network pays staking rewards only to voters with exactly 4 producers
+  // (xpr-network-dev-skill: staking-governance.md); its reward claim is voterclaim.
+  [
+    `"Vote for up to 30 block producers, or set a proxy. claimgbmvote claims voter rewards if any remain.",`,
+    `WHCHAIN.key === "xpr" ? "On XPR Network, vote for exactly 4 block producers: fewer or more forfeits your staking rewards. Claim rewards below." : "Vote for up to 30 block producers, or set a proxy. claimgbmvote claims voter rewards if any remain.",`,
+  ],
+  // on XPR, count only producers shown in the (active) list: votes for producers that
+  // are no longer registered can't be unticked and would be refused by the chain anyway
+  [`: M.length < 30`, `: (WHCHAIN.key === "xpr" ? M.filter((E) => g.some((P) => (P.owner || P.producer || P.account) === E)).length < 4 : M.length < 30)`],
+  [
+    `const _ = w.trim() ? [] : [...k].sort();`,
+    `const _ = w.trim() ? [] : [...k].filter((E) => WHCHAIN.key !== "xpr" || g.some((P) => (P.owner || P.producer || P.account) === E)).sort();
+                if (WHCHAIN.key === "xpr" && !w.trim() && _.length !== 4)
+                  return r(\`Pick exactly 4 producers (you have \${_.length}). On XPR Network any other number forfeits staking rewards.\`, "error");`,
+  ],
+  [`actions: [jC(a)],`, `actions: [WHCHAIN.key === "xpr" ? { account: "eosio", name: "voterclaim", data: { owner: a } } : jC(a)],`],
+  [`children: "Claim GBM voter rewards",`, `children: WHCHAIN.key === "xpr" ? "Claim XPR staking rewards" : "Claim GBM voter rewards",`],
+  /* ================================================== XPR: never lose tokens to the dex memo trap (4.4) */
+  // Metal X's dex contract accepts transfers with any memo but only credits empty-memo ones;
+  // anything else is unrecoverable on-chain (xpr-network-dev-skill: metalx-dex.md). Every
+  // transaction the app signs passes through yo(), so the guard sits here.
+  [
+    `async function yo(t, e) {
+  const r = String(t.actor),`,
+    `async function yo(t, e) {
+  if (WHCHAIN.key === "xpr")
+    for (const x of e)
+      if (x.name === "transfer" && x.data && x.data.to === "dex" && String(x.data.memo || "") !== "")
+        throw new Error("Blocked: tokens sent to Metal X (dex) with a memo are not credited and can't be recovered. Deposit with an empty memo.");
+  const r = String(t.actor),`,
+  ],
+  // the producer list: only registered, active producers (an inactive one makes the vote fail:
+  // "producer … is not currently registered", found by dry run on XPR)
+  [
+    `      (HC(40)
+        .then(x)`,
+    `      (HC(60)
+        .then((P) => P.filter((p) => p.is_active === void 0 || Number(p.is_active) === 1))
+        .then(x)`,
+  ],
 ];

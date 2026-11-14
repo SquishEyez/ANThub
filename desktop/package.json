@@ -1,13 +1,13 @@
 {
-  "name": "wax-hub",
-  "productName": "WAX Hub",
-  "version": "2.1.0",
-  "description": "WAX wallet, NFTs, market, drops, creator studio and asset rescue for WAX mainnet",
-  "homepage": "https://github.com/",
+  "name": "antelope-hub",
+  "productName": "Antelope Hub",
+  "version": "4.4.0",
+  "description": "Antelope Hub: multi-chain wallet, bridges, NFTs, drops, creator studio, contract console and asset rescue for WAX, EOS, Telos, XPR Network and Libre",
+  "homepage": "https://github.com/SquishEyez/WAXhub",
   "license": "MIT",
   "author": {
-    "name": "WAX Hub",
-    "email": "wax-hub@users.noreply.github.com"
+    "name": "Antelope Hub",
+    "email": "antelope-hub@users.noreply.github.com"
   },
   "main": "main.js",
   "private": true,
@@ -22,8 +22,8 @@
   },
   "build": {
     "appId": "app.waxhub",
-    "productName": "WAX Hub",
-    "artifactName": "wax-hub-${version}-${arch}.${ext}",
+    "productName": "Antelope Hub",
+    "artifactName": "antelope-hub-${version}-${arch}.${ext}",
     "files": [
       "main.js",
       "web/**",
@@ -36,14 +36,19 @@
     "linux": {
       "category": "Finance",
       "icon": "build/icon.png",
-      "synopsis": "WAX wallet, NFTs, drops and asset rescue",
-      "executableName": "wax-hub",
+      "synopsis": "Multi-chain Antelope wallet, bridges and asset rescue",
+      "executableName": "antelope-hub",
       "desktop": {
-        "StartupWMClass": "WAX Hub"
+        "StartupWMClass": "Antelope Hub"
       }
     },
     "deb": {
-      "packageCategory": "utils"
+      "packageCategory": "utils",
+      "fpm": [
+        "--replaces=wax-hub",
+        "--conflicts=wax-hub",
+        "--provides=wax-hub"
+      ]
     },
     "publish": null
   }

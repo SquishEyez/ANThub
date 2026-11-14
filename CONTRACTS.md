@@ -1,4 +1,4 @@
-# WAX contract coverage
+# Contract coverage (Antelope Hub)
 
 This map was built on 12 Nov 2026 from live mainnet ABIs (`get_abi`) and real table rows. Each
 row records how to find one account's entries (scope and index) and which action returns the
@@ -77,3 +77,77 @@ Actions without that mark are built from the ABI and labelled *Untested* in the 
 The survey scripts query `get_abi`, `get_table_rows` and Hyperion `get_actions`. To re-check
 after a contract upgrade, compare the struct fields above with the live ABI. The Contract
 console's table view shows each table's row fields.
+
+## Other networks (3.0)
+
+Each scanner runs only if its contract exists on the active network. Presence was checked with `get_abi` on 13 Nov 2026:
+
+| Network | Chain ID (start) | Core token | Contracts found |
+|---|---|---|---|
+| WAX | `1064487b…` | WAX (8) | all of the above |
+| EOS | `aca376f2…` | EOS (4) | atomicassets, atomicmarket, atomictoolsx, atomicdropsx, swap.alcor, delphioracle, core.vaulta |
+| Telos | `4667b205…` | TLOS (4) | atomicassets, atomicmarket, atomictoolsx, blend.nefty, swap.alcor, delphioracle |
+| XPR Network | `384da888…` | XPR (4) | atomicassets, atomicmarket, atomictoolsx, atomicdropsx, blend.nefty, swap.alcor, delphioracle |
+| Libre | `38b1d781…` | LIBRE (4) | system contracts only |
+| Jungle 4 (testnet) | `73e4385a…` | EOS (4) | atomicassets, atomicmarket, atomictoolsx |
+
+The system scanners (unstake refunds, stake to others) run where staking exists. Voting rewards and genesis WAX are WAX-only.
+
+## Bridges (4.0)
+
+Live status is read from each contract's latest on-chain action (Hyperion). These actions were checked against recent mainnet transactions:
+
+| Bridge | Network | User actions in the app |
+|---|---|---|
+| Telos EVM (`eosio.evm`) | Telos | `eosio.token::transfer` TLOS to `eosio.evm` with memo `0x<address>`; `eosio.evm::withdraw(to, quantity)` |
+| EOS EVM (`eosio.evmin` → `eosio.erc2o`) | EOS | `<token>::transfer` to `eosio.evmin` with memo `0x<address>`, for tokens in `eosio.erc2o.tokens` |
+| pNetwork (`*.ptokens`) | EOS, Telos, Libre | `redeem2(sender, quantity, memo, user_data, chain_id)`: PBTC → `01EC97DE` (Bitcoin), PUSDT → `005FE7F9` (Ethereum) |
+| WAX Bridge (`bridge.wax`) | WAX | `claimtoken(evm_tx_hash)`, `claimnft(evm_chain, evm_tx_hash)`; pending rows in `evmtokentx.a` / `evmnfttx.a` |
+| Alcor bridge hub (`bridge.alcor`) | Telos | `claim(owner, sym_code)` from `claims` (scope = owner); send out = `wrap.alcor::transfer` to `bridge.alcor` with memo `<domain>:<recipient>`, routes from `routes` |
+| Alcor bridge spokes (`bridge.alcor`) | WAX, EOS, XPR | `<token>::transfer` to `bridge.alcor` with memo `<telos account>`, or `hop.alcor:<domain>:<recipient>\|<own domain>:<refund account>`; tokens from `listing` (scope = token contract) |
+| Libre USDT (`usdt.libre`, `t.libre`) | Libre | `usdt.libre::transfer` to `t.libre` with memo `0x<ethereum address>` (fee deducted) |
+| Libre Bitcoin (`x.libre`, `v.libre`, `btc.libre`) | Libre | deposit address from `accounts`; peg-out = `btc.libre::transfer` to `x.libre` with memo `<bitcoin address>` |
+| Antelope IBC (`ibc.wl.*`, `ibc.wt.*`), Wombat, XPR wrap | various | status and balances only: completing a transfer needs off-chain proofs or fee quotes |
+| Telos Decide (`telos.decide`) | Telos | `regvoter(voter, treasury_symbol, null)` (first time), `refresh(voter)`, `castvote(voter, ballot_name, options)` |
+
+## New accounts (4.1)
+
+| Network | Action |
+|---|---|
+| EOS | `core.vaulta::newaccount2(creator, name, key)` + `core.vaulta::buyrambytes(payer, receiver, 4096)` |
+| WAX, Telos, Jungle 4 | `eosio::newaccount` + `eosio::buyrambytes` + `eosio::delegatebw` |
+| XPR Network, Libre | created by their onboarding wallets (WebAuth, Bitcoin Libre) |
+
+## Telos governance (4.2)
+
+| Contract | What the app does | Actions |
+|---|---|---|
+| `telos.decide` | Fee deposit | `eosio.token::transfer` TLOS to `telos.decide` (any memo except `skip`); `withdraw(voter, quantity)` |
+| `telos.decide` | Create a ballot | `newballot(ballot_name, category, publisher, treasury_symbol, voting_method, initial_options)`, `editdetails`, `editminmax`, `togglebal(ballot, voteliquid)`, `openvoting(ballot, end_time)` |
+| `telos.decide` | Manage a ballot | `closevoting(ballot, true)`, `cancelballot`, `deleteballot` |
+| `telos.decide` | Community token | `newtreasury(manager, max_supply, access)`, `edittrsinfo`, `toggle(symbol, setting)`, `regvoter(voter, symbol, referrer)`, `mint(to, quantity, memo)` |
+| `works.decide` | Funding proposals | `draftprop`, `launchprop` (fee = max(min_fee, fee_percent × request) from the Works deposit), `submitreport`, `claimfunds`, `nextms`, `cancelprop`, `deleteprop`, `withdraw(account_name, quantity)` |
+| `atomicassets` | NFTs without an indexer | reads `collections`, `schemas`, `templates` and decodes the serialized attribute data |
+
+## Alcor bridge API (4.3)
+
+Base `https://telos.alcor.exchange/api/bridge/v1` (public, no key).
+
+| Feature | Calls | Checks in the app |
+|---|---|---|
+| Deposit address | `POST /deposit-addresses {chain, to[, memo]}`, `GET /deposit-addresses/<address>`, `GET /fees` | EVM address recomputed: CREATE2 from factory `0x6bc5…c362`, salt `keccak256(abi.encode(uint64 telosTo, string leg))` |
+| Swap address (beta) | `POST /deposit-addresses {chain, to, token[, refund]}`, `GET …/estimate` | address recomputed from the returned `telosTo` and `leg`; the leg must buy the chosen token for the chosen recipient |
+| Cross-chain swap | `GET /swap/plan?from=&to=&amount=&recipient=&sender=[&courierFee=]` | only `transfer` to `swap.alcor` / `bridge.alcor` / `book.alcor` from the signer, and `wrap.alcor::open`; the final memo must name the recipient; re-planned at approval |
+| Activity | `GET /hops?party=` | `hop.alcor::recover` offered on Telos for hops with `recover` |
+| Courier fee | `GET /fees` → `withdrawal` | appended to EVM destinations: `hop.alcor:<domain>:<address>:<fee>\|<own domain>:<account>` and `<domain>:<address>:<fee>` |
+
+## XPR Network DeFi (4.4)
+
+| Contract | Actions used | Reads |
+|---|---|---|
+| `lending.loan` (LOAN) | `entermarkets` + `<token>::transfer` memo `mint`; `redeem(redeemer, {L-token, shares.loan})`; `borrow(borrower, {quantity, contract}, false)`; repay = transfer memo `repay`; `claimrewards(claimer, markets)` | `markets`, `marketshares`, `shares`, `borrows`, `rewards`; cash via `get_currency_balance`; prices from `oracles` |
+| `simpledex` | swap = transfer memo `swap:POOL:MIN_OUT:IS_A_IN`; `remliquidity(account, poolId, lpTokens, minA, minB)`; `withdrawdep(account, depositId)` | `pools`, `protofee`, `lp` and `deposits` (scope = account) |
+| `dex` (Metal X) | `cancelorder(account, order_id)`, `withdrawall(account)` | open orders from `dex.api.mainnet.metalx.com/dex/v1/orders/open`; `markets`, `balances` |
+| `eosio` (XPR) | `voteproducer` with exactly 4 producers, `voterclaim` | `get_producers` (active only) |
+| `eosio.proton` | none | `usersinfo`, `kycproviders` |
+| `oracles` | none | `feeds`, `data` |

@@ -1,6 +1,6 @@
 # Third-party notices
 
-WAX Hub includes or is built with these open-source components. Each remains under its own licence.
+Antelope Hub includes or is built with these open-source components. Each remains under its own licence.
 
 | Component | Licence | Used in |
 |---|---|---|
@@ -14,3 +14,7 @@ WAX Hub includes or is built with these open-source components. Each remains und
 | [electron-builder](https://github.com/electron-userland/electron-builder) | MIT | Build tooling only |
 
 Data comes from public WAX mainnet RPC and Hyperion nodes, the AtomicAssets API, the Delphi oracle, and, for receive QR codes, api.qrserver.com.
+
+## qrcode-generator 1.4.4
+
+Copyright (c) 2009 Kazuhiko Arase. MIT License. Vendored in `android/src/qrcode.jsx` (UMD wrapper removed) to draw QR codes on the device.

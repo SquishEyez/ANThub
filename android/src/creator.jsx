@@ -1,6 +1,145 @@
 // Guided Creator studio: Collection -> Schema -> Template -> Mint -> Sell.
 // Every action matches the live atomicassets / neftyblocksd ABIs.
 
+// AtomicAssets without an indexer (Telos): read collections, schemas and
+// templates straight from the contract tables and decode their serialized data.
+// Answers the same paths, in the same shape, as the Atomic API used elsewhere.
+const WHAA = (() => {
+  const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  function b58(bytes) {
+    let n = 0n;
+    for (const x of bytes) n = n * 256n + BigInt(x);
+    let out = "";
+    while (n > 0n) {
+      out = B58[Number(n % 58n)] + out;
+      n /= 58n;
+    }
+    for (const x of bytes) {
+      if (x !== 0) break;
+      out = "1" + out;
+    }
+    return out;
+  }
+  function decode(bytes, format) {
+    const b = Uint8Array.from(bytes || []);
+    const dv = new DataView(b.buffer);
+    let i = 0;
+    const vu = () => {
+      let r = 0n,
+        sh = 0n;
+      for (;;) {
+        const x = b[i++];
+        r |= BigInt(x & 127) << sh;
+        sh += 7n;
+        if (!(x & 128) || i >= b.length) break;
+      }
+      return r;
+    };
+    const num = (v) => (v > BigInt(Number.MAX_SAFE_INTEGER) || v < -BigInt(Number.MAX_SAFE_INTEGER) ? String(v) : Number(v));
+    const one = (type) => {
+      if (type.endsWith("[]")) {
+        const n = Number(vu());
+        return Array.from({ length: n }, () => one(type.slice(0, -2)));
+      }
+      if (type === "string" || type === "image") {
+        const n = Number(vu());
+        const v = new TextDecoder().decode(b.slice(i, i + n));
+        i += n;
+        return v;
+      }
+      if (type === "ipfs") {
+        const n = Number(vu());
+        const v = b58(b.slice(i, i + n));
+        i += n;
+        return v;
+      }
+      if (type === "bool") return b[i++] ? 1 : 0;
+      if (/^uint(8|16|32|64)$/.test(type)) return num(vu());
+      if (/^int(8|16|32|64)$/.test(type)) {
+        const v = vu();
+        return num((v >> 1n) ^ -(v & 1n));
+      }
+      if (type === "float") {
+        const v = dv.getFloat32(i, true);
+        i += 4;
+        return v;
+      }
+      if (type === "double") {
+        const v = dv.getFloat64(i, true);
+        i += 8;
+        return v;
+      }
+      const fx = { fixed8: 1, byte: 1, fixed16: 2, fixed32: 4, fixed64: 8 }[type];
+      if (fx) {
+        let v = 0n;
+        for (let k = 0; k < fx; k++) v |= BigInt(b[i + k]) << BigInt(8 * k);
+        i += fx;
+        return num(v);
+      }
+      throw new Error("unknown attribute type " + type);
+    };
+    const out = {};
+    try {
+      while (i < b.length) {
+        const f = format[Number(vu()) - 4];
+        if (!f) break;
+        out[f.name] = one(f.type);
+      }
+    } catch {}
+    return out;
+  }
+  async function all(p) {
+    const out = [];
+    let lb;
+    for (let k = 0; k < 20; k++) {
+      const r = await qr({ code: "atomicassets", limit: 500, ...p, ...(lb !== void 0 ? { lower_bound: lb } : {}) });
+      out.push(...(r.rows || []));
+      if (!r.more || !r.next_key) break;
+      lb = r.next_key;
+    }
+    return out;
+  }
+  let cfg = null;
+  const colFormat = async () => (cfg = cfg || (await qr({ code: "atomicassets", scope: "atomicassets", table: "config", limit: 1 })).rows[0]).collection_format;
+  const col = async (r) => {
+    const data = decode(r.serialized_data, await colFormat());
+    return { ...r, serialized_data: void 0, data, name: data.name || r.collection_name, img: data.img || "", market_fee: Number(r.market_fee) };
+  };
+  async function chain(path) {
+    const u = new URL(path, "http://x");
+    const q = Object.fromEntries(u.searchParams);
+    let m;
+    if ((m = u.pathname.match(/^\/atomicassets\/v1\/collections\/([a-z1-5.]{1,12})$/))) {
+      const r = (await qr({ code: "atomicassets", scope: "atomicassets", table: "collections", lower_bound: m[1], upper_bound: m[1], limit: 1 })).rows?.[0];
+      if (!r || r.collection_name !== m[1]) throw new Error("Collection not found");
+      return { data: await col(r) };
+    }
+    if (u.pathname === "/atomicassets/v1/collections") {
+      const rows = await all({ scope: "atomicassets", table: "collections" });
+      const pick = q.authorized_account ? rows.filter((r) => (r.authorized_accounts || []).includes(q.authorized_account)) : rows;
+      return { data: await Promise.all(pick.map(col)) };
+    }
+    if (u.pathname === "/atomicassets/v1/schemas" && q.collection_name) {
+      const rows = await all({ scope: q.collection_name, table: "schemas" });
+      return { data: rows.map((r) => ({ ...r, collection: { collection_name: q.collection_name } })) };
+    }
+    if (u.pathname === "/atomicassets/v1/templates" && q.collection_name) {
+      const [sc, tp] = await Promise.all([all({ scope: q.collection_name, table: "schemas" }), all({ scope: q.collection_name, table: "templates" })]);
+      const fm = Object.fromEntries(sc.map((x) => [x.schema_name, x.format]));
+      const data = tp
+        .map((r) => {
+          const imm = decode(r.immutable_serialized_data, fm[r.schema_name] || []);
+          return { template_id: String(r.template_id), schema: { schema_name: r.schema_name, format: fm[r.schema_name] || [] }, immutable_data: imm, name: imm.name || "", is_transferable: !!r.transferable, is_burnable: !!r.burnable, max_supply: String(r.max_supply), issued_supply: String(r.issued_supply), collection: { collection_name: q.collection_name } };
+        })
+        .sort((a, b) => Number(b.template_id) - Number(a.template_id));
+      return { data };
+    }
+    throw new Error("Not available without an Atomic API on " + WHCHAIN.name);
+  }
+  const indexed = () => WHCHAIN.atomic.length > 0;
+  return { get: (p) => (indexed() ? to(p) : chain(p)) };
+})();
+
 const WHCR = (() => {
   // AtomicAssets schema types -> ATOMIC_ATTRIBUTE variant type
   const TYPES = [
@@ -111,7 +250,7 @@ function WH_Creator({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
 
   const loadMine = De.useCallback(async () => {
     if (!me) return setMine([]);
-    const r1 = await to(`/atomicassets/v1/collections?authorized_account=${me}&limit=100`).catch(() => ({ data: [] }));
+    const r1 = await WHAA.get(`/atomicassets/v1/collections?authorized_account=${me}&limit=100`).catch(() => ({ data: [] }));
     setMine(r1.data || []);
   }, [me]);
   const loadCol = De.useCallback(async (c) => {
@@ -120,9 +259,9 @@ function WH_Creator({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
     setSchemas(null);
     setTemplates(null);
     const [ci, sc, tp] = await Promise.all([
-      to(`/atomicassets/v1/collections/${c}`).catch(() => null),
-      to(`/atomicassets/v1/schemas?collection_name=${c}&limit=100`).catch(() => ({ data: [] })),
-      to(`/atomicassets/v1/templates?collection_name=${c}&limit=100&order=desc&sort=created`).catch(() => ({ data: [] })),
+      WHAA.get(`/atomicassets/v1/collections/${c}`).catch(() => null),
+      WHAA.get(`/atomicassets/v1/schemas?collection_name=${c}&limit=100`).catch(() => ({ data: [] })),
+      WHAA.get(`/atomicassets/v1/templates?collection_name=${c}&limit=100&order=desc&sort=created`).catch(() => ({ data: [] })),
     ]);
     setColInfo(ci?.data || false);
     setSchemas(sc.data || []);
@@ -207,7 +346,7 @@ function CR_Home({ me, col, setCol, mine, setStep, colInfo }) {
   return (
     <>
       <CR_Help title="New to making NFTs? Start here">
-        <p>NFTs on WAX use the AtomicAssets standard. Each one is built from four layers:</p>
+        <p>NFTs on {WHCHAIN.name} use the AtomicAssets standard. Each one is built from four layers:</p>
         <ol>
           <li><b>Collection</b>: your brand. It holds a name, logo, description and the royalty (market fee) you earn on resales.</li>
           <li><b>Schema</b>: the list of attributes your NFTs have, like a spreadsheet's column headers (name, img, rarity…).</li>
@@ -288,7 +427,7 @@ function CR_Collection({ me, col, setCol, colInfo, isAuth, ask }) {
     if (!creating || !WHCR.nameOk(f.cname || "")) return setAvail(null);
     let live = true;
     const tm = setTimeout(async () => {
-      const ex = await to(`/atomicassets/v1/collections/${f.cname}`).then(() => true).catch(() => false);
+      const ex = await WHAA.get(`/atomicassets/v1/collections/${f.cname}`).then(() => true).catch(() => false);
       let acct = false;
       try {
         await r0("/v1/chain/get_account", { account_name: f.cname });
@@ -741,7 +880,9 @@ function CR_Mint({ me, col, isAuth, templates, ask }) {
 }
 
 function CR_Sell({ me, col, isAuth, colInfo, templates, ask, session, onNeedLogin, toast }) {
-  const [mode, setMode] = De.useState("drop");
+  const canDrop = WHCHAIN.has("neftyblocksd");
+  const canBlend = WHCHAIN.has("blend.nefty");
+  const [mode, setMode] = De.useState(canDrop ? "drop" : canBlend ? "blend" : "market");
   const [f, setF] = De.useState({ tid: "", price: "1", token: "WAX", max: "100", limit: "0", cooldown: "0", start: "", end: "", name: "", desc: "" });
   const set = (k) => (ev) => setF({ ...f, [k]: ev.target.value });
   const tp = (templates || []).find((x) => String(x.template_id) === String(f.tid));
@@ -753,17 +894,21 @@ function CR_Sell({ me, col, isAuth, colInfo, templates, ask, session, onNeedLogi
     <>
       <h2>Sell or distribute</h2>
       <div className="tabs">
-        <button className={`tab ${mode === "drop" ? "on" : ""}`} onClick={() => setMode("drop")}>
-          Drop (fixed price)
-        </button>
-        <button className={`tab ${mode === "blend" ? "on" : ""}`} onClick={() => { WH.setSub("blend"); setMode("blend"); }}>
-          Blend
-        </button>
+        {canDrop && (
+          <button className={`tab ${mode === "drop" ? "on" : ""}`} onClick={() => setMode("drop")}>
+            Drop (fixed price)
+          </button>
+        )}
+        {canBlend && (
+          <button className={`tab ${mode === "blend" ? "on" : ""}`} onClick={() => { WH.setSub("blend"); setMode("blend"); }}>
+            Blend
+          </button>
+        )}
         <button className={`tab ${mode === "market" ? "on" : ""}`} onClick={() => setMode("market")}>
           Market listing
         </button>
       </div>
-      {mode === "drop" && (
+      {mode === "drop" && canDrop && (
         <>
           <CR_Help>
             <p>A <b>drop</b> lets people claim NFTs at a set price (or free). Each claim mints a new copy of your template on demand, so you don't mint anything up front.</p>
@@ -865,7 +1010,7 @@ function CR_Sell({ me, col, isAuth, colInfo, templates, ask, session, onNeedLogi
           </div>
         </>
       )}
-      {mode === "blend" && (
+      {mode === "blend" && canBlend && (
         <>
           <CR_Help>
             <p>A <b>blend</b> lets holders combine NFTs (the ingredients) to get a new one (the result). For example, 3 Common Dragons → 1 Rare Dragon. It runs on NeftyBlocks' <span className="mono">blend.nefty</span> contract, which must be authorised on your collection.</p>
@@ -874,11 +1019,19 @@ function CR_Sell({ me, col, isAuth, colInfo, templates, ask, session, onNeedLogi
           {De.createElement(aW, { session, onNeedLogin, toast, onBack: () => setMode("drop") })}
         </>
       )}
-      {mode === "market" && (
+      {mode === "market" && WHGATE.tab("market") && (
         <div className="card">
           <p style={{ marginTop: 0 }}>To sell individual NFTs you've already minted, open the <b>Market</b> tab → <b>Sell</b>. Pick NFTs from your wallet and set a price or start an auction.</p>
           <button className="btn primary block" onClick={() => WH.nav({ tab: "market" })}>
             Go to Market
+          </button>
+        </div>
+      )}
+      {mode === "market" && !WHGATE.tab("market") && (
+        <div className="card">
+          <p style={{ marginTop: 0 }}>{WHCHAIN.name} has no active NFT marketplace indexer, so the app doesn't run market listings here. You can still mint straight to buyers (Mint step → recipient), run a blend, or list on AtomicMarket from the Contract console (atomicmarket → announcesale, then an atomicassets offer to atomicmarket).</p>
+          <button className="btn block" onClick={() => WH.nav({ tab: "more", tool: "console", sub: "atomicmarket" })}>
+            Open atomicmarket in Console
           </button>
         </div>
       )}

@@ -1,4 +1,5 @@
-// WAX Hub desktop shell (Linux). Serves the same web bundle as the Android app
+// Antelope Hub desktop shell (Linux). Multi-chain since 3.0: the chain choice is
+// stored by the web app (localStorage on the fixed loopback origin). Serves the same web bundle as the Android app
 // from a private loopback server and shows it in a locked-down window.
 //
 // Security model:
@@ -83,7 +84,7 @@ function serve() {
   });
   return new Promise((resolve, reject) => {
     const tryPort = (i) => {
-      if (i >= PORTS.length) return reject(new Error("No free local port for WAX Hub"));
+      if (i >= PORTS.length) return reject(new Error("No free local port for Antelope Hub"));
       server.once("error", () => tryPort(i + 1));
       server.listen(PORTS[i], "127.0.0.1", () => resolve(`http://127.0.0.1:${PORTS[i]}`));
     };
@@ -137,7 +138,7 @@ if (!app.requestSingleInstanceLock()) {
       height: 820,
       minWidth: 380,
       minHeight: 560,
-      title: "WAX Hub",
+      title: "Antelope Hub",
       backgroundColor: "#0b0c10",
       icon: path.join(__dirname, "build", "icon.png"),
       autoHideMenuBar: true,
