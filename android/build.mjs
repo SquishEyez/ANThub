@@ -5,7 +5,7 @@
 //
 // Steps: extract the web bundle from the APK, prettify it so patches are
 // stable, apply src/patches.mjs, inject src/ext.jsx + src/ext.css, minify,
-// and write a new unsigned APK (dist/wax-hub-2.1-unsigned.apk) plus the web
+// and write a new unsigned APK (dist/antelope-hub-4.4-unsigned.apk) plus the web
 // folder (dist/web) for testing in a browser. Sign with sign.sh.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 import * as prettier from "prettier";
 import { between, replace } from "./src/patches.mjs";
+import { chainify } from "./chainify.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const apkIn = process.argv[2];
@@ -29,6 +30,9 @@ const tmp = path.join(dist, "apk");
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(tmp, { recursive: true });
 execFileSync("unzip", ["-q", "-o", path.resolve(apkIn), "-d", tmp]);
+
+// Antelope Hub branding: "A" coin launcher icons, splash screens, web icon + favicon
+execFileSync("python3", ["-I", path.join(here, "brand.py"), tmp, path.join(dist, "antelope-hub-icon.png")], { stdio: "inherit" });
 
 const pub = path.join(tmp, "assets/public");
 const assets = path.join(pub, "assets");
@@ -59,8 +63,27 @@ for (const [from, to] of replace) {
   js = js.slice(0, i) + to + js.slice(i + from.length);
 }
 
+// 2b. multi-chain: rewrite WAX-specific literals in the app's own code (helpers
+// + app; the bundled libraries are untouched), then point the network
+// constants at the active chain and inject the chain registry before them.
+{
+  const r1 = [once(js, 'const J4 = _2("StatusBar")', "helpers start"), once(js, "function Q(t, e, r, n) {", "helpers end")];
+  const r2 = [once(js, "function Kz(t) {", "app start"), js.length];
+  const res = chainify(js, [r1, r2]);
+  js = res.js;
+  console.log("chainify:", JSON.stringify(res.stats));
+  const a = once(js, '  Q4 = "1064487b3cd1a897ce03ae5b6a865651747e2e152090f99c1d19d44e01aea5a4",', "chain constants");
+  const b = once(js, "  Cy = [", "chain constants end");
+  js =
+    js.slice(0, a) +
+    "  Q4 = WHCHAIN.id,\n  Nf = WHCHAIN.rpc,\n  Yd = WHCHAIN.atomic,\n  sM = WHCHAIN.hyperion,\n  lM = WHCHAIN.lightapiUrl,\n  cM = WHCHAIN.tokensApi,\n" +
+    js.slice(b);
+  const c = once(js, 'const J4 = _2("StatusBar")', "chain registry anchor");
+  js = js.slice(0, c) + fs.readFileSync(path.join(here, "src/chain.js"), "utf8") + "\n" + js.slice(c);
+}
+
 // 3. inject the UX layer at module scope, right before the app code
-const ext = await esbuild.transform(["ext.jsx", "rescue.jsx", "console.jsx", "drops.jsx", "creator.jsx"].map((f) => fs.readFileSync(path.join(here, "src", f), "utf8")).join("\n"), {
+const ext = await esbuild.transform(["qrcode.jsx", "alcorcheck.js", "ext.jsx", "chains.jsx", "rescue.jsx", "console.jsx", "drops.jsx", "creator.jsx", "native.jsx", "bridges.jsx", "account.jsx", "telos.jsx", "alcor.jsx", "xpr.jsx"].map((f) => fs.readFileSync(path.join(here, "src", f), "utf8")).join("\n"), {
   loader: "jsx",
   jsxFactory: "De.createElement",
   jsxFragment: "De.Fragment",
@@ -85,7 +108,7 @@ fs.rmSync(path.join(assets, cssName));
 fs.writeFileSync(path.join(assets, newJs), min.code);
 fs.writeFileSync(path.join(assets, newCss), css.code);
 let html = fs.readFileSync(path.join(pub, "index.html"), "utf8");
-html = html.replace(jsName, newJs).replace(cssName, newCss);
+html = html.replace(jsName, newJs).replace(cssName, newCss).replace("<title>WAX Hub</title>", "<title>Antelope Hub</title>");
 fs.writeFileSync(path.join(pub, "index.html"), html);
 
 fs.cpSync(pub, path.join(dist, "web"), { recursive: true });
@@ -93,13 +116,16 @@ console.log(`web bundle: ${newJs} (${(min.code.length / 1024).toFixed(0)} KB), $
 if (webOnly) process.exit(0);
 
 // 5. release hardening: correct version metadata, no WebView remote debugging, no mixed content
-execFileSync("python3", ["-I", path.join(here, "axml.py"), "patch", path.join(tmp, "AndroidManifest.xml"), path.join(tmp, "AndroidManifest.xml"), "versionCode=3", "versionName=2.1"], { stdio: "inherit" });
+execFileSync("python3", ["-I", path.join(here, "axml.py"), "patch", path.join(tmp, "AndroidManifest.xml"), path.join(tmp, "AndroidManifest.xml"), "versionCode=11", "versionName=4.4"], { stdio: "inherit" });
 const capPath = path.join(tmp, "assets/capacitor.config.json");
 const cap = JSON.parse(fs.readFileSync(capPath, "utf8"));
 cap.android = { ...(cap.android || {}), webContentsDebuggingEnabled: false, allowMixedContent: false };
+cap.appName = "Antelope Hub";
+// launcher label (resources.arsc): "WAX Hub" -> "Antelope Hub"
+execFileSync("python3", ["-I", path.join(here, "arsc.py"), path.join(tmp, "resources.arsc"), "WAX Hub", "Antelope Hub"], { stdio: "inherit" });
 fs.writeFileSync(capPath, JSON.stringify(cap, null, "\t"));
 
 // 6. repack: keep every entry's original compression (resources.arsc etc. stay stored)
-execFileSync("python3", ["-I", path.join(here, "repack.py"), path.resolve(apkIn), tmp, path.join(dist, "wax-hub-2.1-unsigned.apk")], {
+execFileSync("python3", ["-I", path.join(here, "repack.py"), path.resolve(apkIn), tmp, path.join(dist, "antelope-hub-4.4-unsigned.apk")], {
   stdio: "inherit",
 });

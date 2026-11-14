@@ -1,8 +1,8 @@
 # Security policy
 
-## What WAX Hub can and can't do
+## What Antelope Hub can and can't do
 
-- WAX Hub **never handles private keys or seed phrases**. Signing happens in WAX Cloud Wallet or Anchor.
+- Antelope Hub **never handles private keys or seed phrases**. Signing happens in WAX Cloud Wallet or Anchor.
 - Every transaction is shown to you before your wallet asks you to approve it.
 - The Android app only requests the `INTERNET` and `ACCESS_NETWORK_STATE` permissions. Release builds disable WebView remote debugging and plain-HTTP traffic.
 - The Linux app shows the interface in a sandboxed window with no Node.js access. It serves its own files only on `127.0.0.1`, opens other websites in your normal browser, and only allows pop-up windows for wallet sign-in.

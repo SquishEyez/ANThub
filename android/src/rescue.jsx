@@ -47,17 +47,25 @@ const WHRX = (() => {
   // Each scanner: { id, app, contract, label, run(a) -> items[] }
   // item: { key, title, detail?, note?, actions:[{label, acts, danger?}], batch?: acts[], seen }
   const S = [];
-  const add = (app, contract, label, run) => S.push({ id: `${contract}:${label}`, app, contract, label, run });
+  // only scanners whose contract exists on the active chain
+  const API_NEEDED = { "atomicmarket:Auctions & buy offers": 1, "atomictoolsx:NFT claim links": 1 };
+  const add = (app, contract, label, run) => {
+    if (!WHCHAIN.has(contract)) return;
+    if (contract === "eosio" && /refund|staked to/i.test(label) && !(WHCHAIN.staking || WHCHAIN.key === "xpr")) return;
+    if (API_NEEDED[`${contract}:${label}`] && !WHCHAIN.atomic.length) return;
+    S.push({ id: `${contract}:${label}`, app, contract, label, run });
+  };
 
   /* ---------------- WAX system ---------------- */
-  add("WAX system", "eosio", "Unstake refunds", async (a) => {
+  const SYS = `${WHCHAIN.name} system`;
+  add(SYS, "eosio", "Unstake refunds", async (a) => {
     const r = await qr({ code: "eosio", scope: a, table: "refunds", limit: 1 });
     return (r.rows || []).map((x) => {
       const t = Date.parse(x.request_time + "Z") / 1000 + 3 * 86400;
       const ready = now() >= t;
       return {
         key: "refund",
-        title: `Unstaked WAX: ${[x.cpu_amount, x.net_amount].filter(pos).map(WH.trimAsset).join(" + ")}`,
+        title: `Unstaked ${WHCHAIN.sym}: ${[x.cpu_amount, x.net_amount].filter(pos).map(WH.trimAsset).join(" + ")}`,
         detail: ready ? "The 3-day wait is over. Claim it back to your balance." : `Claimable from ${new Date(t * 1000).toLocaleString()}.`,
         actions: ready ? [{ label: "Claim refund", acts: [act("eosio", "refund", { owner: a })] }] : [],
         batch: ready ? [act("eosio", "refund", { owner: a })] : null,
@@ -65,7 +73,7 @@ const WHRX = (() => {
       };
     });
   });
-  add("WAX system", "eosio", "WAX staked to other accounts", async (a) => {
+  add(SYS, "eosio", `${WHCHAIN.sym} staked to other accounts`, async (a) => {
     const rs = await rowsAll({ code: "eosio", scope: a, table: "delband", limit: 100 }, 300);
     return rs
       .filter((x) => x.to !== a && (pos(x.cpu_weight) || pos(x.net_weight)))
@@ -77,7 +85,7 @@ const WHRX = (() => {
         seen: true,
       }));
   });
-  add("WAX system", "eosio", "Voting rewards", async (a) => {
+  if (WHCHAIN.voteRewards) add(SYS, "eosio", "Voting rewards", async (a) => {
     const [v] = await byOwner("eosio", "voters", a, "owner");
     if (!v || (!v.producers?.length && !v.proxy) || !(Number(v.unpaid_voteshare) > 0)) return [];
     const last = Date.parse(v.last_claim_time + "Z") / 1000 || 0;
@@ -86,25 +94,283 @@ const WHRX = (() => {
       {
         key: "gbm",
         title: "Voting rewards",
-        detail: ready ? "You vote, so you may have WAX rewards to claim (claimable once every 24h)." : "Already claimed in the last 24 hours. Check back tomorrow.",
+        detail: ready ? "You vote, so you may have rewards to claim (claimable once every 24h)." : "Already claimed in the last 24 hours. Check back tomorrow.",
         actions: ready ? [{ label: "Claim rewards", acts: [act("eosio", "claimgbmvote", { owner: a })] }] : [],
         batch: ready ? [act("eosio", "claimgbmvote", { owner: a })] : null,
         seen: true,
       },
     ];
   });
-  add("WAX system", "eosio", "Genesis balance", async (a) => {
+  if (WHCHAIN.isWax) add(SYS, "eosio", "Genesis balance", async (a) => {
     const r = await qr({ code: "eosio", scope: a, table: "genesis", limit: 1 });
     return (r.rows || [])
       .filter((x) => pos(x.unclaimed_balance))
       .map((x) => ({
         key: "genesis",
-        title: `Unclaimed genesis WAX: ${WH.trimAsset(x.unclaimed_balance)}`,
+        title: `Unclaimed genesis ${WHCHAIN.sym}: ${WH.trimAsset(x.unclaimed_balance)}`,
         actions: [{ label: "Claim", acts: [act("eosio", "claimgenesis", { claimer: a })] }],
         batch: [act("eosio", "claimgenesis", { claimer: a })],
         seen: true,
       }));
   });
+
+
+  /* ---------------- chain-specific (REX, XPR staking, Metal X, Libre) ---------------- */
+  if (["eos", "telos", "jungle4"].includes(WHCHAIN.key)) {
+    add(SYS, "eosio", "REX", async (a) => {
+      const one = (t) => qr({ code: "eosio", scope: "eosio", table: t, lower_bound: a, upper_bound: a, limit: 1 }).then((r) => (r.rows || [])[0]);
+      const [fund, bal, pool] = await Promise.all([one("rexfund"), one("rexbal"), qr({ code: "eosio", scope: "eosio", table: "rexpool", limit: 1 }).then((r) => (r.rows || [])[0])]);
+      const out = [];
+      if (fund && pos(fund.balance)) {
+        // on Vaulta chains the REX fund is withdrawn through core.vaulta, in A
+        const V = WHCHAIN.vaulta;
+        const acts = [V ? act(V.contract, "withdraw", { owner: a, amount: `${amt(fund.balance).toFixed(V.prec)} ${V.sym}` }) : act("eosio", "withdraw", { owner: a, amount: fund.balance })];
+        out.push({ key: "rexfund", title: `${WH.trimAsset(fund.balance)} waiting in your REX fund`, detail: "Left over from selling REX or an old resource rental. Withdraw it to your wallet.", actions: [{ label: "Withdraw", acts }], batch: acts, seen: true });
+      }
+      if (bal) {
+        const now = Date.now();
+        const m = Number(bal.matured_rex || 0) / 1e4 + (bal.rex_maturities || []).filter((x) => Date.parse((x.first || x.key) + "Z") <= now).reduce((s, x) => s + Number(x.second || x.value) / 1e4, 0);
+        const ratio = pool ? amt(pool.total_lendable) / amt(pool.total_rex) : 0;
+        if (m > 0.0001)
+          out.push({ key: "rexmat", title: `Matured REX worth ≈ ${(m * ratio).toFixed(4)} ${WHCHAIN.sym}`, detail: "You can sell it back to tokens. Proceeds go to your REX fund, then withdraw.", actions: [{ label: "Sell matured REX", acts: [act("eosio", "sellrex", { from: a, rex: `${(Math.floor(m * 1e4) / 1e4).toFixed(4)} REX` })] }], seen: true });
+      }
+      return out;
+    });
+  }
+  if (WHCHAIN.key === "xpr") {
+    add(SYS, "eosio", "XPR staking", async (a) => {
+      const [vx, rf, gl] = await Promise.all([
+        qr({ code: "eosio", scope: "eosio", table: "votersxpr", lower_bound: a, upper_bound: a, limit: 1 }).then((r) => (r.rows || [])[0]),
+        qr({ code: "eosio", scope: a, table: "refundsxpr", limit: 1 }).then((r) => (r.rows || [])[0]),
+        qr({ code: "eosio", scope: "eosio", table: "globalsxpr", limit: 1 }).then((r) => (r.rows || [])[0]),
+      ]);
+      const out = [];
+      if (vx && Number(vx.claimamount) > 0) {
+        const acts = [act("eosio", "voterclaimst", { owner: a })];
+        out.push({ key: "xprclaim", title: `XPR staking rewards: ${(Number(vx.claimamount) / 1e4).toFixed(4)} XPR`, actions: [{ label: "Claim rewards", acts }], batch: acts, seen: true });
+      }
+      if (rf) {
+        const ready = Date.now() >= Date.parse(rf.request_time + "Z") + Number(gl?.unstake_period || 86400) * 1e3;
+        out.push({ key: "xprrefund", title: `Unstaked XPR: ${WH.trimAsset(rf.quantity)}`, detail: ready ? "The unstake period is over." : "Still in the unstake period.", actions: ready ? [{ label: "Claim refund", acts: [act("eosio", "refundxpr", { owner: a })] }] : [], batch: ready ? [act("eosio", "refundxpr", { owner: a })] : null, seen: true });
+      }
+      return out;
+    });
+    S.push({
+      id: "lending.loan:LOAN rewards and supply",
+      app: "LOAN",
+      contract: "lending.loan",
+      label: "Rewards and supplied tokens",
+      run: async (a) => {
+        const [rw, sh] = await Promise.all([WHX.one("lending.loan", "rewards", a), WHX.one("lending.loan", "shares", a)]);
+        const out = [];
+        const mk = (rw?.markets || []).filter((m) => Number(m.value.accrued_amount) > 0);
+        if (mk.length) {
+          const acts = [act("lending.loan", "claimrewards", { claimer: a, markets: mk.map((m) => m.key) })];
+          out.push({ key: "loanrw", title: `Unclaimed LOAN rewards: ${(mk.reduce((s, m) => s + Number(m.value.accrued_amount), 0) / 1e4).toFixed(4)} LOAN`, actions: [{ label: "Claim", acts }], batch: acts, seen: false });
+        }
+        const toks = (sh?.tokens || []).filter((t) => Number(t.value) > 0);
+        if (toks.length) out.push({ key: "loansh", title: `Supplied to LOAN: ${toks.map((t) => `${WHX.raw(t.value, WHX.sp(t.key.sym).p)} ${WHX.sp(t.key.sym).c}`).join(", ")}`, detail: "Earning interest. Withdraw it in XPR DeFi → Lending.", actions: [], nav: { tab: "more", tool: "xprdefi", sub: "loan" }, navLabel: "Open LOAN", seen: true });
+        return out;
+      },
+    });
+    S.push({
+      id: "simpledex:SimpleDEX deposits and liquidity",
+      app: "SimpleDEX",
+      contract: "simpledex",
+      label: "Unfinished deposits and liquidity",
+      run: async (a) => {
+        const [dep, lp] = await Promise.all([qr({ code: "simpledex", scope: a, table: "deposits", limit: 100 }), qr({ code: "simpledex", scope: a, table: "lp", limit: 100 })]);
+        const out = (dep.rows || []).map((x) => {
+          const acts = [act("simpledex", "withdrawdep", { account: a, depositId: x.id })];
+          return { key: `sdd-${x.id}`, title: `${WH.trimAsset(x.amount)} stuck in an unfinished SimpleDEX deposit`, detail: `Sent for pool #${x.poolId} but liquidity was never added.`, actions: [{ label: "Withdraw", acts }], batch: acts, seen: false };
+        });
+        const n = (lp.rows || []).filter((x) => Number(x.lpTokens) > 0).length;
+        if (n) out.push({ key: "sdlp", title: `Liquidity in ${n} SimpleDEX pool${n === 1 ? "" : "s"}`, detail: "Your share of each pool, fees included. Remove it in XPR DeFi → SimpleDEX.", actions: [], nav: { tab: "more", tool: "xprdefi", sub: "simpledex" }, navLabel: "Open SimpleDEX", seen: true });
+        return out;
+      },
+    });
+    S.push({
+      id: "dex:Metal X open orders",
+      app: "Metal X",
+      contract: "dex",
+      label: "Open orders",
+      run: async (a) => {
+        const o = await WHX.openOrders(a);
+        if (!o.length) return [];
+        const acts = o.slice(0, 20).map((x) => act("dex", "cancelorder", { account: a, order_id: String(x.order_id) }));
+        return [{ key: "mxo", title: `${o.length} open Metal X order${o.length === 1 ? "" : "s"}`, detail: "Funds in open orders are locked until they fill or you cancel. Cancelled funds go to your Metal X balance (withdraw it there).", actions: [{ label: "Cancel all", acts }], nav: { tab: "more", tool: "xprdefi", sub: "metalx" }, navLabel: "Review orders", seen: true }];
+      },
+    });
+    S.push({
+      id: "dex:Metal X balances",
+      app: "Metal X",
+      contract: "dex",
+      label: "Exchange balances",
+      run: async (a) => {
+        const row = await qr({ code: "dex", scope: "dex", table: "balances", lower_bound: a, upper_bound: a, limit: 1 }).then((r) => (r.rows || [])[0]);
+        const list = (row && row.account === a ? row.balances : []).filter((b) => pos(b.quantity));
+        if (!list.length) return [];
+        const acts = [act("dex", "withdrawall", { account: a })];
+        return [{ key: "metalx", title: `Metal X exchange balance: ${list.map((b) => WH.trimAsset(b.quantity)).join(", ")}`, detail: "Funds from filled or cancelled orders.", actions: [{ label: "Withdraw all", acts }], batch: acts, seen: true }];
+      },
+    });
+  }
+  if (WHCHAIN.key === "libre") {
+    S.push({
+      id: "stake.libre:Finished stakes",
+      app: "Libre",
+      contract: "stake.libre",
+      label: "Finished stakes",
+      run: async (a) => {
+        const r = await qr({ code: "stake.libre", scope: "stake.libre", table: "stake", index_position: 2, key_type: "name", lower_bound: a, upper_bound: a, limit: 100 });
+        return (r.rows || [])
+          .filter((s) => s.account === a && Date.now() >= Date.parse(s.payout_date + "Z"))
+          .map((s) => {
+            const acts = [act("stake.libre", "claim", { account: a, index: s.index })];
+            return { key: `ls-${s.index}`, title: `Finished LIBRE stake: ${WH.trimAsset(s.payout)}`, detail: `Stake #${s.index} ended ${new Date(Date.parse(s.payout_date + "Z")).toLocaleDateString()}.`, actions: [{ label: "Claim", acts }], batch: acts, seen: true };
+          });
+      },
+    });
+  }
+
+
+  /* ---------------- bridges ---------------- */
+  // Alcor cross-chain transfers that came back and wait in hop.alcor (anyone may push recover)
+  if (["wax", "eos", "telos", "xpr"].includes(WHCHAIN.key)) {
+    S.push({
+      id: "hop.alcor:Returned cross-chain transfers",
+      app: "Bridges",
+      contract: "hop.alcor",
+      label: "Returned cross-chain transfers",
+      run: async (a) => {
+        const x = await WHAX.get(`/hops?party=${a}&limit=50`);
+        return (x.hops || [])
+          .filter((h) => h.recover)
+          .map((h) => {
+            const acts = WHCHAIN.key === "telos" && h.recover.account === "hop.alcor" ? [act(h.recover.account, h.recover.name, h.recover.data)] : null;
+            return {
+              key: `hop-${h.key}`,
+              title: `Cross-chain ${h.deposit?.symbol || "transfer"} came back from ${WHAX.NAMES[h.to?.chain] || h.to?.chain}`,
+              detail: `It waits in Alcor's hop contract on Telos to be sent back to ${h.back?.recipient}. ${acts ? "Push it now:" : "Switch to Telos to push it, or wait for Alcor's relayer."}`,
+              actions: acts ? [{ label: "Send it back", acts }] : [],
+              batch: acts,
+              nav: { tab: "more", tool: "alcorx", sub: "activity" },
+              navLabel: "Open Activity",
+              seen: true,
+            };
+          });
+      },
+    });
+  }
+  // Wrapped tokens from bridges that were wound down or need extra steps
+  // (IBC, Wombat, pNetwork). WHBR is defined later in the bundle, so it is
+  // only read when the scan runs.
+  if (WHCHAIN.key !== "jungle4") {
+    S.push({
+      id: "bridges:Wrapped bridge tokens",
+      app: "Bridges",
+      contract: "bridge tokens",
+      label: "Tokens from old or paused bridges",
+      run: async (a) => {
+        const kinds = WHBR.list.filter((b) => ["ibc", "wombat", "ptokens"].includes(b.id));
+        if (!kinds.length) return [];
+        const bals = await H9(a);
+        const out = [];
+        for (const b of kinds)
+          for (const x of bals.filter((t) => (b.tokens || []).includes(t.contract) && Number(t.amount) > 0)) {
+            const redeem = b.id === "ptokens" && ["PBTC", "PUSDT"].includes(x.currency);
+            out.push({
+              key: `bt-${x.contract}-${x.currency}`,
+              title: `${Number(x.amount).toLocaleString(void 0, { maximumFractionDigits: 8 })} ${x.currency} from ${b.name}`,
+              detail: redeem
+                ? `Wrapped by pNetwork (${x.contract}). It can be redeemed to the original network in Bridges, if pNetwork still processes that route.`
+                : b.id === "ptokens"
+                  ? `Wrapped by pNetwork (${x.contract}). Its redeem format couldn't be verified, so it isn't automated. You can still send or trade it.`
+                  : b.id === "wombat"
+                    ? `Wrapped by the closed Wombat bridge (${x.contract}). It can't be redeemed any more; you can still send or trade it where a market exists.`
+                    : `Wrapped by Antelope IBC (${x.contract}). Returning it needs the IBC app's provers. Bridges explains your options.`,
+              actions: [],
+              nav: { tab: "more", tool: "bridges", sub: b.id },
+              navLabel: redeem ? "Redeem in Bridges" : "Open in Bridges",
+              seen: true,
+            });
+          }
+        return out;
+      },
+    });
+  }
+  if (WHCHAIN.isWax) {
+    S.push({
+      id: "bridge.wax:Incoming bridge transfers",
+      app: "Bridges",
+      contract: "bridge.wax",
+      label: "Incoming bridge transfers",
+      run: async (a) => {
+        const [tk, nf] = await Promise.all([
+          qr({ code: "bridge.wax", scope: "bridge.wax", table: "evmtokentx.a", limit: 500 }).then((r) => r.rows || []),
+          qr({ code: "bridge.wax", scope: "bridge.wax", table: "evmnfttx.a", limit: 500 }).then((r) => r.rows || []),
+        ]);
+        return [
+          ...tk.filter((x) => x.wax_to_account === a).map((x) => {
+            const acts = [act("bridge.wax", "claimtoken", { evm_tx_hash: x.evm_tx_hash })];
+            return { key: `wb-${x.id}`, title: `Bridged tokens waiting: ${WH.trimAsset(x.wax_receive_token.quantity)}`, detail: `From ${x.evm_chain}. The final claim on WAX was never made.`, actions: [{ label: "Claim", acts }], batch: acts, seen: true };
+          }),
+          ...nf.filter((x) => x.wax_to_account === a).map((x) => {
+            const acts = [act("bridge.wax", "claimnft", { evm_chain: x.evm_chain, evm_tx_hash: x.evm_tx_hash })];
+            return { key: `wbn-${x.id}`, title: `Bridged NFTs waiting: ${(x.evm_token_ids || []).length} NFT(s)`, detail: `From ${x.evm_chain}.`, actions: [{ label: "Claim NFTs", acts }], batch: acts, seen: false };
+          }),
+        ];
+      },
+    });
+  }
+  if (WHCHAIN.key === "telos") {
+    S.push({
+      id: "eosio.evm:Telos EVM balance",
+      app: "Bridges",
+      contract: "eosio.evm",
+      label: "Linked Telos EVM balance",
+      run: async (a) => {
+        const r = await qr({ code: "eosio.evm", scope: "eosio.evm", table: "account", index_position: 3, key_type: "name", lower_bound: a, upper_bound: a, limit: 1 });
+        const x = (r.rows || [])[0];
+        if (!x || x.account !== a) return [];
+        const bal = Number(BigInt("0x" + (x.balance || "0")) / 10n ** 14n) / 1e4;
+        if (!(bal > 0)) return [];
+        const acts = [act("eosio.evm", "withdraw", { to: a, quantity: `${bal.toFixed(4)} TLOS` })];
+        return [{ key: "tevm", title: `${bal.toFixed(4)} TLOS on your linked Telos EVM address`, detail: `0x${x.address}. Withdraw it back to your Telos account.`, actions: [{ label: "Withdraw to Telos", acts }], batch: acts, seen: true }];
+      },
+    });
+    for (const [code, label, field] of [["telos.decide", "Telos Decide", "voter"], ["works.decide", "Telos Works", "account_name"]])
+      S.push({
+        id: `${code}:Unused fee deposit`,
+        app: "Telos governance",
+        contract: code,
+        label: "Unused fee deposit",
+        run: async (a) => {
+          const r = await qr({ code, scope: a, table: "accounts", limit: 10 });
+          return (r.rows || [])
+            .filter((x) => String(x.balance).endsWith(" TLOS") && pos(x.balance))
+            .map((x) => {
+              const acts = [act(code, "withdraw", { [field]: a, quantity: x.balance })];
+              return { key: `dep-${code}`, title: `${WH.trimAsset(x.balance)} unused in your ${label} deposit`, detail: `TLOS sent to ${code} to pay fees that was never used. Withdraw it back to your wallet.`, actions: [{ label: "Withdraw", acts }], batch: acts, seen: true };
+            });
+        },
+      });
+    S.push({
+      id: "bridge.alcor:Alcor bridge claims",
+      app: "Bridges",
+      contract: "bridge.alcor",
+      label: "Alcor bridge claims",
+      run: async (a) => {
+        const r = await qr({ code: "bridge.alcor", scope: a, table: "claims", limit: 50 });
+        return (r.rows || [])
+          .filter((c) => pos(c.balance))
+          .map((c) => {
+            const acts = [act("bridge.alcor", "claim", { owner: a, sym_code: String(c.balance).split(" ")[1] })];
+            return { key: `ab-${c.balance}`, title: `Alcor bridge: ${WH.trimAsset(c.balance)} claimable`, actions: [{ label: "Claim", acts }], batch: acts, seen: true };
+          });
+      },
+    });
+  }
 
   /* ---------------- deposit balances (withdraw) ---------------- */
   const deposit = (app, code, table, field, label, mk, seen) =>
@@ -495,7 +761,7 @@ const WHRX = (() => {
   return { scanners: S, auth };
 })();
 
-const RX_NOT_SCANNED = [
+const RX_NOT_SCANNED_ALL = [
   ["swap.alcor", "Alcor liquidity positions: manage them on alcor.exchange or in the Contract console (subliquid, collect)."],
   ["swap.taco", "Taco liquidity: remove it in the Contract console (remliquidity)."],
   ["nfthivecraft", "NFTHive timed craft lockups (6,000+ rows, not indexed by owner): unlock them in the Contract console (unlock)."],
@@ -529,10 +795,16 @@ function WH_Rescue({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
       while (queue.length) {
         const s = queue.shift();
         try {
-          const items = (await s.run(a)).filter(Boolean);
+          // public nodes sometimes refuse bursts of requests: retry once before reporting
+          const items = (await s.run(a).catch(async (e1) => {
+            await new Promise((ok) => setTimeout(ok, 1500));
+            return s.run(a);
+          })).filter(Boolean);
           if (runId.current === id) setState((st) => ({ ...st, [s.id]: { status: "done", items } }));
         } catch (err) {
-          if (runId.current === id) setState((st) => ({ ...st, [s.id]: { status: "err", err: String(err?.message || err), items: [] } }));
+          const msg = String(err?.message || err);
+          const missing = /table .*(not specified|not found)|unknown table|Table .* is not specified in the ABI|abi_not_found|no abi/i.test(msg);
+          if (runId.current === id) setState((st) => ({ ...st, [s.id]: missing ? { status: "done", items: [] } : { status: "err", err: msg, items: [] } }));
         }
       }
     };
@@ -588,9 +860,9 @@ function WH_Rescue({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
         <h1 style={{ margin: 0, flex: 1 }}>Rescue & recover</h1>
       </div>
       <p className="sub">
-        Checks {WHRX.scanners.length} places across {new Set(WHRX.scanners.map((s) => s.contract)).size} contracts (AtomicHub, NeftyBlocks, NFTHive, WAXDAO, Alcor, Taco and
-        more) for anything still held for your account: deposits, unclaimed packs and blends, stakes, open orders, claim links and locks. Then gets it back, even if the
-        original website is gone.
+        Checks {WHRX.scanners.length} places across {new Set(WHRX.scanners.map((s) => s.contract)).size} contracts on {WHCHAIN.name}
+        {WHCHAIN.isWax ? " (AtomicHub, NeftyBlocks, NFTHive, WAXDAO, Alcor, Taco and more)" : ""} for anything still held for your account: deposits, unclaimed results,
+        stakes, open orders, claim links and refunds. Then gets it back, even if the original website is gone.
       </p>
       <form
         className="search"
@@ -635,14 +907,14 @@ function WH_Rescue({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
               <div className="row" style={{ alignItems: "flex-start" }}>
                 <div style={{ fontWeight: 650, flex: 1 }}>{it.title}</div>
                 <span className={`pill ${it.seen ? "good" : ""}`} title={it.seen ? "This action has recent successful calls on mainnet" : "Built from the ABI. No recent mainnet use was found."}>
-                  {it.seen ? "Verified" : "Untested"}
+                  {it.nav && !it.actions.length ? "Found" : it.seen ? "Verified" : "Untested"}
                 </span>
               </div>
               <div className="faint" style={{ fontSize: 11, marginTop: 2 }}>
                 {it.s.contract} · {it.s.label}
               </div>
               {it.detail && <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>{it.detail}</div>}
-              {(it.actions.length > 0 || it.console) && (
+              {(it.actions.length > 0 || it.console || it.nav) && (
                 <div className="wh-chips" style={{ marginTop: 10 }}>
                   {it.actions.map((x) => (
                     <button key={x.label} className={`btn sm ${x.danger ? "" : "primary"}`} onClick={() => ask(x.label, x.acts, it)}>
@@ -652,6 +924,11 @@ function WH_Rescue({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
                   {it.console && (
                     <button className="btn sm" onClick={() => WH.nav({ tab: "more", tool: "console", sub: it.console })}>
                       Open in console
+                    </button>
+                  )}
+                  {it.nav && (
+                    <button className={`btn sm ${it.actions.length ? "" : "primary"}`} onClick={() => WH.nav(it.nav)}>
+                      {it.navLabel || "Open"}
                     </button>
                   )}
                 </div>
@@ -673,7 +950,7 @@ function WH_Rescue({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
             Checked: {[...new Set(WHRX.scanners.map((s) => s.contract))].join(", ")}.
           </div>
           <ul className="muted" style={{ fontSize: 12, paddingLeft: 18 }}>
-            {RX_NOT_SCANNED.map(([c, d]) => (
+            {RX_NOT_SCANNED_ALL.filter(([c]) => WHCHAIN.has(c)).map(([c, d]) => (
               <li key={c}>{d}</li>
             ))}
           </ul>

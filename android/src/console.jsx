@@ -1,4 +1,4 @@
-// Contract console: load any WAX contract's ABI and call any action (forms are
+// Contract console: load any Antelope contract's ABI and call any action (forms are
 // generated from the ABI types), or browse any table. The universal fallback
 // for sites that no longer exist.
 
@@ -10,7 +10,10 @@ const CC_KNOWN = [
   ["nft.hive", "nft.hive"], ["tf.waxdao", "WAXDAO token farms"], ["farms.waxdao", "WAXDAO NFT farms"], ["dao.waxdao", "WAXDAO DAOs"],
   ["waxdaolocker", "WAXDAO locker"], ["waxdaobacker", "WAXDAO NFT backing"], ["waxdaosynths", "WAXDAO synths"], ["wufclaimtool", "WUF airdrops"],
   ["alcordexmain", "Alcor limit orders"], ["swap.alcor", "Alcor AMM"], ["swap.taco", "Taco swap"], ["stake.taco", "Taco staking"], ["swap.box", "Defibox-style swap"],
-  ["s.rplanet", "RPlanet staking"], ["simpleassets", "SimpleAssets"], ["eosio", "WAX system"], ["eosio.token", "WAX token"],
+  ["core.vaulta", "Vaulta (A token)"], ["dex", "Metal X exchange"], ["stake.libre", "Libre staking"], ["dao.libre", "Libre DAO"], ["book.alcor", "Alcor order book"],
+  ["telos.decide", "Telos Decide: ballots & voting tokens"], ["works.decide", "Telos Works funding"], ["amend.decide", "Telos Amend: governing documents"],
+  ["tf", "Telos Foundation elections"], ["eosio.msig", "Multisig proposals"], ["eosio.evm", "Telos EVM bridge"], ["bridge.alcor", "Alcor bridge"],
+  ["s.rplanet", "RPlanet staking"], ["simpleassets", "SimpleAssets"], ["eosio", "System contract"], ["eosio.token", "Core token"],
 ];
 
 // Actions that can hand control of an account to someone else or replace code.
@@ -89,9 +92,9 @@ const WHCC = (() => {
   }
   const hint = (t) =>
     ({
-      asset: "e.g. 1.00000000 WAX (amount with the token's decimals + symbol)",
-      symbol: "e.g. 8,WAX (decimals,SYMBOL)",
-      symbol_code: "e.g. WAX",
+      asset: `e.g. ${WHCHAIN.amt(1)} (amount with the token's decimals + symbol)`,
+      symbol: `e.g. ${WHCHAIN.symp} (decimals,SYMBOL)`,
+      symbol_code: `e.g. ${WHCHAIN.sym}`,
       time_point_sec: "e.g. 2026-12-31T23:59:59",
       time_point: "e.g. 2026-12-31T23:59:59.000",
       checksum256: "64 hex characters",
@@ -101,8 +104,14 @@ const WHCC = (() => {
   return { resolve, struct, variant, empty, clean, hint, isInt, isFloat };
 })();
 
-// Plain-English help for common parameter names across WAX contracts.
+// Plain-English help for common parameter names across Antelope contracts.
 const CC_HELP = [
+  [/^voter$/, "The voting account, usually your own"],
+  [/^treasury_symbol$/, "The voting token's decimals and code, e.g. 4,VOTE"],
+  [/^ballot_name$/, "The ballot's id (12-character name), shown in Telos studio and on explorers"],
+  [/^proposal_name$/, "The proposal's id (a short account-style name)"],
+  [/^(referrer)$/, "Optional: the account that registers someone else. Leave off to register yourself"],
+  [/^options$/, "The option ids you're voting for, one per line, e.g. yes"],
   [/^(owner|user|account|claimer|staker|from|payer|buyer|seller|sender|creator|wallet|executor|authorized_\w+|asset_owner)$/, "Usually your own account name"],
   [/^(to|receiver|recipient|new_asset_owner|new_owner)$/, "The account that receives it"],
   [/^(quantity|amount|token_to_withdraw|listing_price|price|stake_\w+|unstake_\w+|quant)$/, "Amount + symbol with the token's exact decimals, e.g. 1.00000000 WAX or 10.0000 TLM"],
@@ -114,7 +123,7 @@ const CC_HELP = [
   [/^template_id$/, "Template number, shown on the NFT's details"],
   [/(_id|^id)$/, "A numeric ID. Find it in the contract's tables (Tables tab) or on the related screen"],
   [/^(farm_name|farmname|dao)$/, "The farm/DAO's name as shown on WAXDAO"],
-  [/symbol$/, "decimals,SYMBOL e.g. 8,WAX"],
+  [/symbol$/, `decimals,SYMBOL e.g. ${WHCHAIN.symp}`],
   [/time$/, "Usually seconds since 1970 (Unix time). 0 often means no limit"],
   [/^(roll_indexes|origin_roll_ids)$/, "Which result slots to claim. Use Rescue & recover to fill these automatically"],
 ];
@@ -122,15 +131,21 @@ const ccHelp = (name) => (CC_HELP.find(([re]) => re.test(name)) || [])[1] || "";
 
 // Common jobs, pre-filled. data(me) gives starting values.
 const CC_RECIPES = [
-  ["Withdraw leftover WAX from AtomicMarket", "After a cancelled offer or a sale, funds wait in the market contract.", "atomicmarket", "withdraw", (me) => ({ owner: me, token_to_withdraw: "1.00000000 WAX" })],
-  ["Send tokens", "Transfer WAX to another account.", "eosio.token", "transfer", (me) => ({ from: me, to: "", quantity: "1.00000000 WAX", memo: "" })],
+  [`Withdraw leftover ${WHCHAIN.sym} from AtomicMarket`, "After a cancelled offer or a sale, funds wait in the market contract.", "atomicmarket", "withdraw", (me) => ({ owner: me, token_to_withdraw: WHCHAIN.amt(1) })],
+  ["Send tokens", `Transfer ${WHCHAIN.sym} to another account.`, "eosio.token", "transfer", (me) => ({ from: me, to: "", quantity: WHCHAIN.amt(1), memo: "" })],
   ["Send NFTs", "Transfer one or more NFTs by asset ID.", "atomicassets", "transfer", (me) => ({ from: me, to: "", asset_ids: [], memo: "" })],
   ["Burn an NFT", "Permanently destroy an NFT you own.", "atomicassets", "burnasset", (me) => ({ asset_owner: me, asset_id: "" })],
   ["Cancel an AtomicHub claim link", "Get NFTs back from a link nobody claimed.", "atomictoolsx", "cancellink", () => ({ link_id: "" })],
   ["Claim WAXDAO farm rewards", "Collect rewards from an NFT farm.", "farms.waxdao", "claim", (me) => ({ user: me, farmname: "" })],
   ["Unstake NFTs from a WAXDAO farm", "Get staked NFTs back.", "farms.waxdao", "unstake", (me) => ({ user: me, farmname: "", asset_ids: [] })],
-  ["Claim an unstake refund", "Collect WAX after the 3-day unstake wait.", "eosio", "refund", (me) => ({ owner: me })],
+  ["Claim an unstake refund", `Collect ${WHCHAIN.sym} after the 3-day unstake wait.`, "eosio", "refund", (me) => ({ owner: me })],
   ["Claim voting rewards", "Once every 24h if you vote for producers or a proxy.", "eosio", "claimgbmvote", (me) => ({ owner: me })],
+  ["Join a Telos voting token", "Register once for VOTE (or a community token) so you can vote with it.", "telos.decide", "regvoter", (me) => ({ voter: me, treasury_symbol: "4,VOTE", referrer: null })],
+  ["Refresh your VOTE balance", "Updates your VOTE after you stake or unstake TLOS, so your votes count fully.", "telos.decide", "refresh", (me) => ({ voter: me })],
+  ["Vote on a Telos ballot", "Vote by ballot id. Telos essentials does this with a list of open ballots.", "telos.decide", "castvote", (me) => ({ voter: me, ballot_name: "", options: ["yes"] })],
+  ["Withdraw your Telos Decide deposit", "Get back unused TLOS you sent to pay ballot or token fees.", "telos.decide", "withdraw", (me) => ({ voter: me, quantity: "1.0000 TLOS" })],
+  ["Claim Telos Works funds", "For proposers, after a milestone ballot passes.", "works.decide", "claimfunds", () => ({ proposal_name: "" })],
+  ["Approve a multisig proposal", "Add your approval to a proposal someone created in eosio.msig.", "eosio.msig", "approve", (me) => ({ proposer: "", proposal_name: "", level: { actor: me, permission: "active" }, proposal_hash: null })],
 ];
 
 function CC_Lab(p) {
@@ -386,7 +401,7 @@ function WH_Console({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
         </button>
         <h1 style={{ margin: 0, flex: 1 }}>Contract console</h1>
       </div>
-      <p className="sub">Use any WAX contract directly, even if its website is gone. Forms are built from the contract's own ABI, and nothing is sent until you approve it in your wallet.</p>
+      <p className="sub">Use any {WHCHAIN.name} contract directly, even if its website is gone. Forms are built from the contract's own ABI, and nothing is sent until you approve it in your wallet.</p>
       <CR_Help title="How the console works (read me first)">
         <ol>
           <li><b>Contract</b>: the account where a dApp's code lives, e.g. <span className="mono">atomicmarket</span>. Type it or pick one below.</li>
@@ -394,7 +409,7 @@ function WH_Console({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
           <li><b>Review</b> shows exactly what will be sent. Your wallet then asks you to approve it. Nothing happens if you reject it.</li>
           <li><b>Tables</b> are the contract's stored data. Use them to look up IDs you need, e.g. your sale IDs or farm names. <i>Scope</i> is like a folder (often the contract itself or your account). <i>Bounds</i> jump to a key, e.g. your account name.</li>
         </ol>
-        <p>Formats: amounts are <span className="mono">1.00000000 WAX</span> (all of the token's decimals plus the symbol). Symbols are <span className="mono">8,WAX</span>. Lists go one item per line.</p>
+        <p>Formats: amounts are <span className="mono">{WHCHAIN.amt(1)}</span> (all of the token's decimals plus the symbol). Symbols are <span className="mono">8,WAX</span>. Lists go one item per line.</p>
         <p>Tip: if you're not sure which action to use, try <b>Rescue & recover</b> first. It finds stuck items and fills these in for you.</p>
       </CR_Help>
       <form
@@ -406,7 +421,7 @@ function WH_Console({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
       >
         <input className="input" list="cc-known" value={input} placeholder="Contract account, e.g. blend.nefty" autoCapitalize="none" onChange={(ev) => setInput(ev.target.value.toLowerCase())} />
         <datalist id="cc-known">
-          {CC_KNOWN.map(([c, d]) => (
+          {CC_KNOWN.filter(([c]) => WHCHAIN.has(c)).map(([c, d]) => (
             <option key={c} value={c}>
               {d}
             </option>
@@ -420,7 +435,7 @@ function WH_Console({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
         <>
           <h2>Common tasks</h2>
           <div className="cc-recipes">
-            {CC_RECIPES.map(([title, desc, c, a, data]) => (
+            {CC_RECIPES.filter(([, , c, a]) => WHCHAIN.has(c) && (a !== "claimgbmvote" || WHCHAIN.voteRewards) && (a !== "refund" || WHCHAIN.staking)).map(([title, desc, c, a, data]) => (
               <button
                 key={title}
                 className="hub-card"
@@ -447,7 +462,7 @@ function WH_Console({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
           )}
           <h2>Popular contracts</h2>
           <div className="card" style={{ paddingTop: 4 }}>
-            {CC_KNOWN.map(([c, d]) => (
+            {CC_KNOWN.filter(([c]) => WHCHAIN.has(c)).map(([c, d]) => (
               <button key={c} className="list-item" style={{ width: "100%", textAlign: "left" }} onClick={() => load(c)}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 650 }}>{d}</div>

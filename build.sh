@@ -8,5 +8,5 @@ node build.mjs base/wax-hub-2.0.apk
 cd "$ROOT/desktop" && npm install --no-audit --no-fund
 npm run dist
 echo
-echo "Android (unsigned): android/dist/wax-hub-2.1-unsigned.apk  -> sign with android/sign.sh"
+echo "Android (unsigned): android/dist/antelope-hub-4.2-unsigned.apk  -> sign with android/sign.sh"
 echo "Linux:              desktop/release/*.AppImage, desktop/release/*.deb"
