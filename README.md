@@ -3,13 +3,19 @@
 </p>
 
 <h1 align="center">Antelope Hub</h1>
-<p align="center"><i>formerly WAX Hub</i></p>
 
 <p align="center">
-  <b>Your Antelope wallet, NFTs, market, drops, creator tools and asset rescue in one free app.</b><br>
-  WAX · EOS · Telos · XPR Network · Libre · Jungle 4 testnet. Android and Linux.<br>
+  <b>One free app for the Antelope blockchains: wallet, bridges, cross-chain swaps, DeFi, NFTs and asset rescue.</b><br>
+  WAX · EOS (Vaulta) · Telos · XPR Network · Libre · Jungle 4 testnet. Android and Linux.<br>
   It talks straight to the blockchains, so it keeps working when other websites shut down.
 </p>
+
+<p align="center">
+  Wallet & staking · Bridges & cross-chain (Alcor) · Telos governance studio · XPR DeFi (LOAN, SimpleDEX, Metal X)<br>
+  Rescue stuck assets · NFT creator · Contract console · Guided account creation
+</p>
+
+> **Antelope Hub replaces WAX Hub.** The old WAX-only app is retired. On Android, Antelope Hub installs over WAX Hub as an update (same app, same signing key), so your settings carry over.
 
 <p align="center">
   <a href="../../releases/latest"><b>⬇ Download the latest release</b></a>
@@ -21,9 +27,9 @@
 
 | Platform | File | How to install |
 |---|---|---|
-| **Android** 6.0+ | `antelope-hub-4.2.0.apk` | Open the file on your phone and allow installs from your browser or file manager if Android asks. |
-| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | `antelope-hub-4.2.0-amd64.deb` | `sudo apt install ./antelope-hub-4.2.0-amd64.deb`, then open **Antelope Hub** from your apps menu. |
-| **Linux** (any distro) | `antelope-hub-4.2.0-x86_64.AppImage` | `chmod +x antelope-hub-4.2.0-x86_64.AppImage && ./antelope-hub-4.2.0-x86_64.AppImage` |
+| **Android** 6.0+ | `antelope-hub-4.4.0.apk` | Open the file on your phone and allow installs from your browser or file manager if Android asks. |
+| **Linux** (Ubuntu, Debian, Mint, Pop!_OS) | `antelope-hub-4.4.0-amd64.deb` | `sudo apt install ./antelope-hub-4.4.0-amd64.deb`, then open **Antelope Hub** from your apps menu. |
+| **Linux** (any distro) | `antelope-hub-4.4.0-x86_64.AppImage` | `chmod +x antelope-hub-4.4.0-x86_64.AppImage && ./antelope-hub-4.4.0-x86_64.AppImage` |
 
 All files are on the [Releases page](../../releases/latest). Check your download against `SHA256SUMS.txt` on the same page:
 
