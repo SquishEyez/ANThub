@@ -67,6 +67,12 @@ You can also create an account from one you already have. The app makes the keys
 
 ## 4. Find your way around
 
+<p>
+  <img src="screenshots/1-welcome.png" width="180" alt="Welcome">
+  <img src="screenshots/3-more.png" width="180" alt="All tools">
+  <img src="screenshots/6-telos-studio.png" width="180" alt="Telos studio">
+</p>
+
 The bottom bar holds **Wallet**, **NFTs**, **Market**, **Drops** and **More**. Tabs only appear where the network supports them; for example, Libre has no NFTs tab.
 
 ### Wallet
