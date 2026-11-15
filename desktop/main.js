@@ -1,4 +1,4 @@
-// Antelope Hub desktop shell (Linux). Multi-chain since 3.0: the chain choice is
+// Antelope Hub desktop shell (Linux). The chosen network is
 // stored by the web app (localStorage on the fixed loopback origin). Serves the same web bundle as the Android app
 // from a private loopback server and shows it in a locked-down window.
 //

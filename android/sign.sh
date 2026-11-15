@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Align and sign the Android build (v1 + v2 + v3). Needs Android build-tools
 # (zipalign, apksigner) on PATH.
-#   ./sign.sh /path/to/waxhub-release.jks
+#   ./sign.sh /path/to/release-keystore.jks   (key alias: waxhub, the original key)
 # You'll be asked for the keystore password. Never commit the keystore.
 set -euo pipefail
 KS="${1:?usage: ./sign.sh /path/to/keystore.jks [alias]}"; ALIAS="${2:-waxhub}"

@@ -1,4 +1,4 @@
-// WAX Hub 3.0 — UX layer.
+// Antelope Hub: core UX layer (helpers, sheets, onboarding, quick actions).
 // This file is compiled with esbuild (jsxFactory De.createElement) and injected
 // into the original app bundle at module scope, so it can use the bundle's own
 // React (`De`), Capacitor (`Dh`, `_2`), chain helpers (`FC`, `k2`) and constants.

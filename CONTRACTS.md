@@ -1,6 +1,6 @@
 # Contract coverage (Antelope Hub)
 
-This map was built on 12 Nov 2026 from live mainnet ABIs (`get_abi`) and real table rows. Each
+This map was built in November 2026 from live mainnet ABIs (`get_abi`) and real table rows. Each
 row records how to find one account's entries (scope and index) and which action returns the
 value. The scope and index were checked by querying real rows for real accounts.
 
@@ -64,7 +64,7 @@ Actions without that mark are built from the ABI and labelled *Untested* in the 
 - **lock.minty**, **claim.nefty**: tables are currently empty or show no recent activity.
 - **eosio · namebids**: no bidder index. Use `bidrefund(bidder, newname)`.
 
-## Bugs fixed in the 2.0 screens while mapping
+## Bugs fixed in the original (2.0) screens while mapping
 
 - Packs → NeftyBlocks read `claimassets` with `scope = account`, so it never found anything. It now uses the contract scope and idx2 = recipient.
 - Packs → NeftyBlocks claimed only `roll_indexes: [0]`, which skipped every item after the first. It now claims every unclaimed index.
@@ -78,22 +78,34 @@ The survey scripts query `get_abi`, `get_table_rows` and Hyperion `get_actions`.
 after a contract upgrade, compare the struct fields above with the live ABI. The Contract
 console's table view shows each table's row fields.
 
-## Other networks (3.0)
+## Other networks
 
-Each scanner runs only if its contract exists on the active network. Presence was checked with `get_abi` on 13 Nov 2026:
+Each scanner runs only if its contract exists on the active network. Presence was checked with `get_abi` in November 2026:
 
-| Network | Chain ID (start) | Core token | Contracts found |
+| Network | Chain ID (start) | Core token | Contracts the app uses beyond the system contracts |
 |---|---|---|---|
-| WAX | `1064487b…` | WAX (8) | all of the above |
-| EOS | `aca376f2…` | EOS (4) | atomicassets, atomicmarket, atomictoolsx, atomicdropsx, swap.alcor, delphioracle, core.vaulta |
-| Telos | `4667b205…` | TLOS (4) | atomicassets, atomicmarket, atomictoolsx, blend.nefty, swap.alcor, delphioracle |
-| XPR Network | `384da888…` | XPR (4) | atomicassets, atomicmarket, atomictoolsx, atomicdropsx, blend.nefty, swap.alcor, delphioracle |
-| Libre | `38b1d781…` | LIBRE (4) | system contracts only |
-| Jungle 4 (testnet) | `73e4385a…` | EOS (4) | atomicassets, atomicmarket, atomictoolsx |
+| WAX | `1064487b…` | WAX (8) | everything in the tables above, plus bridge.wax, bridge.alcor |
+| EOS (Vaulta) | `aca376f2…` | EOS (4), A (4) | atomicassets, atomicmarket, atomictoolsx, atomicdropsx, swap.alcor, delphioracle, core.vaulta, eosio.evmin, \*.ptokens, bridge.alcor |
+| Telos | `4667b205…` | TLOS (4) | atomicassets, atomicmarket, blend.nefty, swap.alcor, delphioracle, telos.decide, works.decide, eosio.evm, bridge.alcor, \*.ptokens |
+| XPR Network | `384da888…` | XPR (4) | atomicassets, atomicmarket, atomicdropsx, blend.nefty, swap.alcor, lending.loan, simpledex, dex (Metal X), oracles, eosio.proton, bridge.alcor |
+| Libre | `38b1d781…` | LIBRE (4) | stake.libre, dao.libre, btc.libre / x.libre, usdt.libre / t.libre, \*.ptokens |
+| Jungle 4 (testnet) | `73e4385a…` | EOS (4) | atomicassets, atomicmarket, atomictoolsx, core.vaulta |
 
 The system scanners (unstake refunds, stake to others) run where staking exists. Voting rewards and genesis WAX are WAX-only.
 
-## Bridges (4.0)
+### EOS since the Vaulta rebrand (checked by dry run)
+
+| Task | What works | What the system contract refuses |
+|---|---|---|
+| Put tokens into REX | `core.vaulta::deposit` + `core.vaulta::buyrex`, in **A** (EOS is converted first by a transfer to `core.vaulta`) | `eosio::deposit` ("must now be called from the core.vaulta contract") |
+| Withdraw the REX fund | `core.vaulta::withdraw(owner, … A)` | `eosio::withdraw` |
+| Convert EOS ⇄ A | transfer EOS (`eosio.token`) or A (`core.vaulta`) to `core.vaulta`; it pays back 1:1 | `core.vaulta::swapto` to yourself ("cannot transfer to self") |
+| Create an account | `core.vaulta::newaccount2` + `core.vaulta::buyrambytes(…, 4096)` | `newaccount2` alone (the account has no RAM) |
+| RAM, staking, PowerUp, voting, name bids, refunds | `eosio::…` as before | – |
+
+On Jungle 4, `core.vaulta` doesn't convert EOS to A, so REX there needs test A tokens.
+
+## Bridges
 
 Live status is read from each contract's latest on-chain action (Hyperion). These actions were checked against recent mainnet transactions:
 
@@ -110,7 +122,7 @@ Live status is read from each contract's latest on-chain action (Hyperion). Thes
 | Antelope IBC (`ibc.wl.*`, `ibc.wt.*`), Wombat, XPR wrap | various | status and balances only: completing a transfer needs off-chain proofs or fee quotes |
 | Telos Decide (`telos.decide`) | Telos | `regvoter(voter, treasury_symbol, null)` (first time), `refresh(voter)`, `castvote(voter, ballot_name, options)` |
 
-## New accounts (4.1)
+## New accounts
 
 | Network | Action |
 |---|---|
@@ -118,7 +130,7 @@ Live status is read from each contract's latest on-chain action (Hyperion). Thes
 | WAX, Telos, Jungle 4 | `eosio::newaccount` + `eosio::buyrambytes` + `eosio::delegatebw` |
 | XPR Network, Libre | created by their onboarding wallets (WebAuth, Bitcoin Libre) |
 
-## Telos governance (4.2)
+## Telos governance
 
 | Contract | What the app does | Actions |
 |---|---|---|
@@ -129,7 +141,7 @@ Live status is read from each contract's latest on-chain action (Hyperion). Thes
 | `works.decide` | Funding proposals | `draftprop`, `launchprop` (fee = max(min_fee, fee_percent × request) from the Works deposit), `submitreport`, `claimfunds`, `nextms`, `cancelprop`, `deleteprop`, `withdraw(account_name, quantity)` |
 | `atomicassets` | NFTs without an indexer | reads `collections`, `schemas`, `templates` and decodes the serialized attribute data |
 
-## Alcor bridge API (4.3)
+## Alcor bridge API
 
 Base `https://telos.alcor.exchange/api/bridge/v1` (public, no key).
 
@@ -141,7 +153,7 @@ Base `https://telos.alcor.exchange/api/bridge/v1` (public, no key).
 | Activity | `GET /hops?party=` | `hop.alcor::recover` offered on Telos for hops with `recover` |
 | Courier fee | `GET /fees` → `withdrawal` | appended to EVM destinations: `hop.alcor:<domain>:<address>:<fee>\|<own domain>:<account>` and `<domain>:<address>:<fee>` |
 
-## XPR Network DeFi (4.4)
+## XPR Network DeFi
 
 | Contract | Actions used | Reads |
 |---|---|---|

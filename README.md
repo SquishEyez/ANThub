@@ -104,10 +104,15 @@ The Creator studio also works on Telos: NFT collections, schemas and templates a
 ## What it does
 
 <p>
-  <img src="docs/screenshots/2-home.png" width="200" alt="Wallet">
-  <img src="docs/screenshots/3-drops.png" width="200" alt="Live drops">
-  <img src="docs/screenshots/4-rescue.png" width="200" alt="Rescue and recover">
-  <img src="docs/screenshots/5-creator.png" width="200" alt="Creator studio">
+  <img src="docs/screenshots/2-networks.png" width="200" alt="Choose a network">
+  <img src="docs/screenshots/4-bridges.png" width="200" alt="Bridges">
+  <img src="docs/screenshots/5-console.png" width="200" alt="Contract console">
+  <img src="docs/screenshots/7-xpr-defi.png" width="200" alt="XPR DeFi">
+</p>
+<p>
+  <img src="docs/screenshots/1-welcome.png" width="200" alt="Welcome">
+  <img src="docs/screenshots/3-more.png" width="200" alt="All tools">
+  <img src="docs/screenshots/6-telos-studio.png" width="200" alt="Telos studio">
 </p>
 
 - **Wallet**: balances with USD value, send tokens (with account checks, MAX button and exchange-memo warnings), receive, stake CPU/NET, buy and sell RAM, and warnings when resources run low.
