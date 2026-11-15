@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Build everything: the Android APK (unsigned) and the Linux desktop app.
-# Requirements: Node.js 20+, Python 3, unzip. Signing the APK: see android/sign.sh.
+# Requirements: Node.js 20+, Python 3 with Pillow, unzip. Signing the APK: see android/sign.sh.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT/android" && npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
 node build.mjs base/wax-hub-2.0.apk
+# the desktop app packages the same web bundle
+rm -rf "$ROOT/desktop/web" && cp -r "$ROOT/android/dist/web" "$ROOT/desktop/web"
 cd "$ROOT/desktop" && npm install --no-audit --no-fund
 npm run dist
 echo

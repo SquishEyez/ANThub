@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// Build WAX Hub 2.1 from the WAX Hub 2.0 release APK.
+// Build Antelope Hub from the original WAX Hub 2.0 APK (base/wax-hub-2.0.apk).
 //
-//   node build.mjs <wax-hub-2.0.apk> [--web-only]
+//   node build.mjs base/wax-hub-2.0.apk [--web-only]
 //
 // Steps: extract the web bundle from the APK, prettify it so patches are
-// stable, apply src/patches.mjs, inject src/ext.jsx + src/ext.css, minify,
-// and write a new unsigned APK (dist/antelope-hub-1.0-unsigned.apk) plus the web
-// folder (dist/web) for testing in a browser. Sign with sign.sh.
+// stable, apply src/patches.mjs, rewrite WAX-only values (chainify.mjs), inject
+// src/chain.js and the src/*.jsx feature layer plus src/ext.css, minify, rebrand
+// icons, splash screens and the launcher label, and write an unsigned APK
+// (dist/antelope-hub-1.0-unsigned.apk) plus the web folder (dist/web) for
+// testing in a browser. Sign with sign.sh.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -21,7 +23,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const apkIn = process.argv[2];
 const webOnly = process.argv.includes("--web-only");
 if (!apkIn) {
-  console.error("usage: node build.mjs <wax-hub-2.0.apk> [--web-only]");
+  console.error("usage: node build.mjs base/wax-hub-2.0.apk [--web-only]");
   process.exit(1);
 }
 

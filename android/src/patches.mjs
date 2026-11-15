@@ -705,7 +705,7 @@ export const replace = [
   [`                          children: B.cpu_weight || "—",`, `                          children: B.cpu_weight ? WH.trimAsset(B.cpu_weight) : "—",`],
   [`                          children: B.net_weight || "—",`, `                          children: B.net_weight ? WH.trimAsset(B.net_weight) : "—",`],
 
-  /* ================================================== MULTI-CHAIN (3.0) */
+  /* ================================================== Multi-chain */
   [`z9 = "2.1",`, `z9 = "1.0",`],
   // Cloud Wallet only exists on WAX; Anchor covers every chain
   [
@@ -971,7 +971,7 @@ export const replace = [
     `          t === "more" && r === "native" && N.jsx(WH_Native, { ...$, onBack: Z }, "native" + whKey),
           t === "more" && r === "rescue" && N.jsx(WH_Rescue, { ...$, onBack: Z }, "rescue" + whKey),`,
   ],
-  /* ================================================== Antelope Hub rebrand (4.0) */
+  /* ================================================== Antelope Hub branding */
   [`  oM = "WAX Hub",`, `  oM = "Antelope Hub",`],
   [
     `              N.jsx("div", { className: "brand-mark", children: "W" }),
@@ -988,7 +988,7 @@ export const replace = [
                   N.jsx("h1", {`,
   ],
   [`          "WAX Hub ",`, `          "Antelope Hub ",`],
-  // Bridges tool + guided account creation (4.1)
+  // Bridges tool + guided account creation
   [
     `  {
     id: "rescue",
@@ -1041,7 +1041,7 @@ export const replace = [
           t === "more" && r === "bridges" && N.jsx(WH_Bridges, { ...$, onBack: Z }, "bridges" + whKey),
           t === "more" && r === "rescue" && N.jsx(WH_Rescue, { ...$, onBack: Z }, "rescue" + whKey),`,
   ],
-  /* ================================================== local QR codes (4.3) */
+  /* ================================================== local QR codes */
   [
     "                src: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(o)}&bgcolor=ffffff&color=0b0c10&qzone=2`,",
     "                src: WH_qrSrc(o),",
@@ -1050,7 +1050,7 @@ export const replace = [
     "  const e = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(t)}&bgcolor=ffffff&color=0b0c10&qzone=2`;",
     "  const e = WH_qrSrc(t);",
   ],
-  /* ================================================== RPC without CORS preflight (4.3.1) */
+  /* ================================================== RPC without CORS preflight */
   // Antelope nodes read the JSON body either way. Labelling it application/json
   // forces a CORS preflight, which telos/proton/libre.greymass.com reject (400),
   // so every read there failed once before falling back to another node.
@@ -1065,7 +1065,7 @@ export const replace = [
         body: JSON.stringify(e),
       });`,
   ],
-  /* ================================================== XPR voting rules (4.4) */
+  /* ================================================== XPR voting rules */
   // XPR Network pays staking rewards only to voters with exactly 4 producers
   // (xpr-network-dev-skill: staking-governance.md); its reward claim is voterclaim.
   [
@@ -1083,7 +1083,7 @@ export const replace = [
   ],
   [`actions: [jC(a)],`, `actions: [WHCHAIN.key === "xpr" ? { account: "eosio", name: "voterclaim", data: { owner: a } } : jC(a)],`],
   [`children: "Claim GBM voter rewards",`, `children: WHCHAIN.key === "xpr" ? "Claim XPR staking rewards" : "Claim GBM voter rewards",`],
-  /* ================================================== XPR: never lose tokens to the dex memo trap (4.4) */
+  /* ================================================== XPR: never lose tokens to the dex memo trap */
   // Metal X's dex contract accepts transfers with any memo but only credits empty-memo ones;
   // anything else is unrecoverable on-chain (xpr-network-dev-skill: metalx-dex.md). Every
   // transaction the app signs passes through yo(), so the guard sits here.
