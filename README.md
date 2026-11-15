@@ -121,12 +121,14 @@ The Creator studio also works on Telos: NFT collections, schemas and templates a
 
 ## Your keys stay in your wallet
 
-Antelope Hub **never sees your private keys**. You sign in with **WAX Cloud Wallet** or **Anchor**, and every transaction:
+Antelope Hub **never sees your private keys**. You sign in with **Anchor** (every network) or **My Cloud Wallet** (WAX), and every transaction:
 
 1. shows you a plain-English summary first, and
 2. only happens after **you approve it in your wallet**.
 
-Reject it in the wallet and nothing is sent. The app talks directly to public WAX mainnet nodes and the AtomicAssets API. There are no accounts, no tracking and no ads.
+Reject it in the wallet and nothing is sent. The app talks directly to public blockchain nodes and public APIs (AtomicAssets, Hyperion, Alcor, Metal X). There are no accounts, no tracking and no ads.
+
+New to the app, or coming from WAX Hub? Read the **[User guide](docs/USER_GUIDE.md)**: getting started, every screen, and a full walkthrough of the Contract console.
 
 ## Safety tips
 
