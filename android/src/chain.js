@@ -49,7 +49,7 @@ const WHCHAINS = {
     staking: true,
     ram: true,
     powerup: true,
-    contracts: ["atomicassets", "atomicmarket", "atomictoolsx", "atomicdropsx", "swap.alcor", "delphioracle", "core.vaulta"],
+    contracts: ["atomicassets", "atomicmarket", "atomictoolsx", "atomicdropsx", "swap.alcor", "delphioracle", "core.vaulta", "wombatmaster"],
     // converts: a transfer of EOS to core.vaulta returns A (true on mainnet; checked by dry run)
     vaulta: { contract: "core.vaulta", sym: "A", prec: 4, delphi: "ausd", delphiPrec: 4, converts: true },
   },
