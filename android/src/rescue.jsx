@@ -723,6 +723,36 @@ const WHRX = (() => {
     return out;
   });
 
+  add("Wombat", "wombatmaster", "Dungeon Master NFTs", async (a) => {
+    const [rows, [st]] = await Promise.all([
+      rowsAll({ code: "wombatmaster", scope: a, table: "staked", limit: 500 }, 3000),
+      byOwner("wombatmaster", "stats", a, "account"),
+    ]);
+    const out = [];
+    const chunks = (ids) => Array.from({ length: Math.ceil(ids.length / 100) }, (_, i) => ids.slice(i * 100, i * 100 + 100));
+    const hidden = rows.filter((r) => !Number(r.unstaked_at)).map((r) => r.asset_id);
+    const leaving = rows.filter((r) => Number(r.unstaked_at));
+    const ready = leaving.filter((r) => now() >= Number(r.unstaked_at) + 86400).map((r) => r.asset_id);
+    const waiting = leaving.filter((r) => now() < Number(r.unstaked_at) + 86400);
+    if (ready.length) {
+      const acts = chunks(ready).map((ids) => act("wombatmaster", "claim", { owner: a, staked_assets: ids }));
+      out.push({ key: "wb-claim", title: `${ready.length} NFT(s) unstaked from the Wombat Dungeon, ready to claim`, detail: "The 24-hour wait is over. Claiming sends them back to your account.", actions: [{ label: "Claim NFTs", acts }], batch: acts, seen: true });
+    }
+    if (waiting.length) {
+      const t = Math.max(...waiting.map((r) => Number(r.unstaked_at) + 86400));
+      out.push({ key: "wb-wait", title: `${waiting.length} NFT(s) leaving the Wombat Dungeon`, detail: `Unstaked. You can claim them from ${new Date(t * 1000).toLocaleString()}. Scan again then.`, actions: [], seen: true });
+    }
+    if (hidden.length) {
+      const acts = chunks(hidden).map((ids) => act("wombatmaster", "unstake", { owner: a, asset_ids: ids }));
+      out.push({ key: "wb-hidden", title: `${hidden.length} NFT(s) hidden in the Wombat Dungeon`, detail: "Staked in Dungeon Master. Unstaking stops their dungeon rewards; after 24 hours, scan again to claim them back.", actions: [{ label: "Unstake all", acts, danger: true }], seen: true, console: "wombatmaster" });
+    }
+    if (st && now() >= Number(st.candy_claimed_at || 0) + 86400) {
+      const acts = [act("wombatmaster", "claimcandy", { account: a })];
+      out.push({ key: "wb-candy", title: "Daily Wombat candy is ready", detail: "Claims your Dungeon Master candy for today.", actions: [{ label: "Claim candy", acts }], seen: true });
+    }
+    return out;
+  });
+
   /* ---------------- others ---------------- */
   add("RPlanet", "s.rplanet", "RPlanet staking", async (a) => {
     const [u] = await byOwner("s.rplanet", "accounts", a, "user");

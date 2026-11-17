@@ -13,7 +13,7 @@ const CC_KNOWN = [
   ["core.vaulta", "Vaulta (A token)"], ["dex", "Metal X exchange"], ["stake.libre", "Libre staking"], ["dao.libre", "Libre DAO"], ["book.alcor", "Alcor order book"],
   ["telos.decide", "Telos Decide: ballots & voting tokens"], ["works.decide", "Telos Works funding"], ["amend.decide", "Telos Amend: governing documents"],
   ["tf", "Telos Foundation elections"], ["eosio.msig", "Multisig proposals"], ["eosio.evm", "Telos EVM bridge"], ["bridge.alcor", "Alcor bridge"],
-  ["s.rplanet", "RPlanet staking"], ["simpleassets", "SimpleAssets"], ["eosio", "System contract"], ["eosio.token", "Core token"],
+  ["wombatmaster", "Wombat Dungeon Master"], ["s.rplanet", "RPlanet staking"], ["simpleassets", "SimpleAssets"], ["eosio", "System contract"], ["eosio.token", "Core token"],
 ];
 
 // Actions that can hand control of an account to someone else or replace code.
@@ -145,6 +145,9 @@ const CC_RECIPES = [
   ["Vote on a Telos ballot", "Vote by ballot id. Telos essentials does this with a list of open ballots.", "telos.decide", "castvote", (me) => ({ voter: me, ballot_name: "", options: ["yes"] })],
   ["Withdraw your Telos Decide deposit", "Get back unused TLOS you sent to pay ballot or token fees.", "telos.decide", "withdraw", (me) => ({ voter: me, quantity: "1.0000 TLOS" })],
   ["Claim Telos Works funds", "For proposers, after a milestone ballot passes.", "works.decide", "claimfunds", () => ({ proposal_name: "" })],
+  ["Unstake NFTs from the Wombat Dungeon", "Start the 24-hour unstake for NFTs hidden in Dungeon Master.", "wombatmaster", "unstake", (me) => ({ owner: me, asset_ids: [] })],
+  ["Claim NFTs back from the Wombat Dungeon", "After the 24-hour wait, return unstaked NFTs to your account.", "wombatmaster", "claim", (me) => ({ owner: me, staked_assets: [] })],
+  ["Claim daily Wombat candy", "Once a day in Dungeon Master.", "wombatmaster", "claimcandy", (me) => ({ account: me })],
   ["Approve a multisig proposal", "Add your approval to a proposal someone created in eosio.msig.", "eosio.msig", "approve", (me) => ({ proposer: "", proposal_name: "", level: { actor: me, permission: "active" }, proposal_hash: null })],
 ];
 

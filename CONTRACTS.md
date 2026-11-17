@@ -51,6 +51,7 @@ Actions without that mark are built from the ABI and labelled *Untested* in the 
 | WAXDAO | wufclaimtool · claims | scope = airdrop id, primary = claimer | `claim(airdrop_id, account)` | ✓ |
 | Alcor | alcordexmain · account → buy/sell orders | primary, then idx3 = account (scope = market id) | `cancelbuy` / `cancelsell` | ✓ |
 | Taco | stake.taco · users / staked | primary | `claim`, `unstake` | ✓ |
+| Wombat | wombatmaster · staked, stats (WAX and EOS) | scope = account / primary = account | `unstake(owner, asset_ids)`, then after 24h `claim(owner, staked_assets)`; `claimcandy(account)` (daily) | ✓ |
 | RPlanet | s.rplanet · accounts | primary = user | `claim(to)` | ✓ |
 | SimpleAssets | simpleassets · offers | idx2 = owner, idx3 = offeredto | `canceloffer` / `claim` | – / ✓ |
 

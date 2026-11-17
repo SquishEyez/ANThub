@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Rescue & recover**: Wombat Dungeon Master on WAX and EOS. Finds NFTs hidden in the dungeon (unstake), unstaked NFTs ready to claim after the 24-hour wait, and the daily candy claim
+- **Contract console**: Wombat Dungeon Master recipes (unstake, claim, claim candy)
+
 ## 1.0.0: Antelope Hub
 
 First release of **Antelope Hub**, which replaces WAX Hub. It covers WAX, EOS (Vaulta), Telos, XPR Network, Libre and the Jungle 4 testnet. On Android it installs over WAX Hub as an update (same app id and signing key).

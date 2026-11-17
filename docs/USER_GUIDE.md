@@ -207,6 +207,7 @@ The **Approve a multisig proposal** task approves a proposal someone else create
 - matured REX
 - open orders: Alcor, Metal X
 - unfinished deposits: SimpleDEX
+- NFTs hidden in the Wombat Dungeon (Dungeon Master), on WAX and EOS: unstake them, then claim them back after 24 hours
 - claim links
 - bridge transfers waiting to be claimed
 - tokens left from old bridges
