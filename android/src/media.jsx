@@ -40,8 +40,10 @@ const WHIPFS = (() => {
     return null;
   }
 
-  // Every URL worth trying for a reference, best first.
-  function candidates(ref) {
+  const isPreview = (u) => u.includes("resizer.atomichub.io");
+  // Every URL worth trying for a reference, best first. Small cards try the
+  // preview service first (about 20 KB instead of a full-size original).
+  function candidates(ref, small = false) {
     const s = String(ref || "").trim();
     if (!s || s === "null") return [];
     if (s.startsWith("data:image/")) return [s];
@@ -53,34 +55,41 @@ const WHIPFS = (() => {
     } catch {}
     // a working https link first, unless it points at a gateway known to be dead
     const own = host && !DEAD.test(host) ? [s] : [];
-    return [...new Set([...own, ...viaGateways])];
+    const list = [...new Set([...own, ...viaGateways])];
+    return small ? [...list.filter(isPreview), ...list.filter((u) => !isPreview(u))] : list;
   }
 
   const isVideo = (ref) => /\.(mp4|webm|mov)(\?|$)/i.test(String(ref || ""));
-  return { candidates, cidOf, isVideo };
+  return { candidates, cidOf, isVideo, isPreview };
 })();
 
 const WH_MEDIA_HEAD_START = 1200; // ms before the next gateway joins in
 const WH_MEDIA_GIVE_UP = 25000; // ms after the last one started
+const WH_MEDIA_SMALL = 240; // css px: cards this narrow get the preview first
 
 function WH_Media({ src, alt, className, style }) {
-  const cands = De.useMemo(() => WHIPFS.candidates(src), [src]);
   const video = WHIPFS.isVideo(src);
   const [visible, setVisible] = De.useState(false);
+  const [small, setSmall] = De.useState(false);
+  const cands = De.useMemo(() => WHIPFS.candidates(src, small), [src, small]);
   const [url, setUrl] = De.useState(null);
   const [failed, setFailed] = De.useState(false);
   // Some NFTs only have a video. When no gateway returns a decodable image,
   // play the same file as a video instead (the image service only makes stills).
   const [asVideo, setAsVideo] = De.useState(false);
-  const vids = De.useMemo(() => cands.filter((u) => !u.includes("resizer.atomichub.io")), [cands]);
+  const vids = De.useMemo(() => cands.filter((u) => !WHIPFS.isPreview(u)), [cands]);
   const [vi, setVi] = De.useState(0); // which video candidate is playing
   const holder = De.useRef(null);
 
   // load only once the card scrolls into view
   De.useEffect(() => {
     if (visible || !holder.current) return;
-    if (typeof IntersectionObserver === "undefined") return setVisible(true);
-    const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && setVisible(true), { rootMargin: "200px" });
+    const show = () => {
+      setSmall((holder.current?.clientWidth || 999) <= WH_MEDIA_SMALL);
+      setVisible(true);
+    };
+    if (typeof IntersectionObserver === "undefined") return show();
+    const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && show(), { rootMargin: "200px" });
     io.observe(holder.current);
     return () => io.disconnect();
   }, [visible, url]);
@@ -98,23 +107,34 @@ function WH_Media({ src, alt, className, style }) {
     let errors = 0;
     const timers = [];
     const probes = [];
+    // stop downloading from the slower gateways (full-size originals can be ~1 MB)
+    const stopOthers = (keep) =>
+      probes.forEach((p) => {
+        if (p === keep) return;
+        p.onload = p.onerror = null;
+        p.src = "";
+      });
     const start = () => {
       if (done || started >= cands.length) return;
       const u = cands[started++];
       const im = new Image();
       im.referrerPolicy = "no-referrer";
-      im.onload = () => {
-        if (done) return;
-        done = true;
-        setUrl(u);
-      };
-      im.onerror = () => {
+      const failOne = () => {
         if (done) return;
         if (++errors === cands.length) {
           done = true;
           setAsVideo(true); // every gateway answered, none with an image
         } else start(); // a fast failure lets the next gateway in straight away
       };
+      im.onload = () => {
+        if (done) return;
+        // the preview service answers a tiny placeholder when it has no picture
+        if (im.naturalWidth <= 2 && im.naturalHeight <= 2) return failOne();
+        done = true;
+        stopOthers(im);
+        setUrl(u);
+      };
+      im.onerror = failOne;
       im.src = u;
       probes.push(im);
       if (started < cands.length) timers.push(setTimeout(start, WH_MEDIA_HEAD_START));
@@ -124,9 +144,7 @@ function WH_Media({ src, alt, className, style }) {
     return () => {
       done = true;
       timers.forEach(clearTimeout);
-      probes.forEach((im) => {
-        im.onload = im.onerror = null;
-      });
+      stopOthers(null);
     };
   }, [cands, visible, video]);
 

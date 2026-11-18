@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.2: NFT pictures, checked on the real network
+
+- **Every NFT picture shows**, in the inventory, market, packs, collections and templates. Checked against the live image servers:
+  - Small cards now ask AtomicHub's preview service first (about 20 KB instead of a full-size original of up to 1 MB), and stop the slower downloads as soon as one picture arrives.
+  - When the preview service has no picture it answers with a 1×1 pixel. That no longer counts as success, so such NFTs (often videos saved as "img") now play their video instead of showing a blank card.
+
 ## 1.1.1: Packs and NFT images
 
 - **NFT images show again.** The IPFS gateways the app used have shut down: two no longer exist, one was retired in 2024, and ipfs.io now refuses with "too many requests". Images now come from gateways that still serve WAX NFT media: ipfs.eosdac.io, AtomicHub's image service (resizer.atomichub.io) and ipfs.alienworlds.io. Each gets a short head start before the next joins in, and the first that loads wins, so a hanging gateway no longer leaves a blank card. Images load as they scroll into view, without sending which page you're on (no referrer). Images saved as links to a dead gateway are fetched from a working one, and NFTs that only have a video now show it
