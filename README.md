@@ -22,14 +22,24 @@
   <img src="docs/screenshots/7-xpr-defi.png" width="180" alt="XPR DeFi">
 </p>
 
+## What's new in 1.2
+
+- **Sign in with WebAuth** on XPR Network, next to Anchor
+- **Trade on Metal X**: limit and market orders on every market
+- **PowerUp works**: pick how much CPU and NET, see the live price (100 ms of CPU ≈ 0.02 WAX); Telos rents CPU from REX
+- **Recent fixes**: NFT pictures load again, Packs lists your own packs, and EOS accounts that hold only A can still move their NFTs
+
+All changes: [CHANGELOG.md](CHANGELOG.md)
+
 ## What it does
 
-- **Wallet**: balances, send and receive, staking, RAM, PowerUp and voting on every network
-- **NFTs**: view, send, buy and sell, plus a Creator studio to mint your own
-- **Bridges and cross-chain**: move tokens between Antelope chains and Ethereum, BNB Chain, Polygon and more
+- **Wallet**: balances, send and receive, staking, RAM, PowerUp and voting on every network. Sign in with Anchor, My Cloud Wallet (WAX) or WebAuth (XPR Network)
+- **NFTs**: view, send, buy and sell, open packs, plus a Creator studio to mint your own
+- **Bridges and cross-chain**: move tokens between Antelope chains and Ethereum, BNB Chain, Polygon and more, including WAX → Ethereum and A → EOS EVM
+- **EOS (Vaulta)**: convert EOS ⇄ A, and pay for CPU, NET and RAM with A when you run out
 - **Telos studio**: polls, community voting tokens, Telos Works funding
-- **XPR DeFi**: LOAN lending, SimpleDEX swaps, Metal X trading
-- **Rescue & recover**: finds tokens, NFTs, rewards and refunds stuck in contracts, and gets them back
+- **XPR DeFi**: LOAN lending, SimpleDEX swaps, Metal X trading, oracle prices, WebAuth profiles
+- **Rescue & recover**: finds tokens, NFTs, rewards and refunds stuck in contracts (including the Wombat Dungeon), and gets them back
 - **Contract console**: use any smart contract directly, even if its website has gone
 
 ## Install
