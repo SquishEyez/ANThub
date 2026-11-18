@@ -16,20 +16,20 @@ Antelope Hub is built from the original **WAX Hub 2.0** Android APK (`android/ba
 ```
 
 Outputs:
-- `android/dist/antelope-hub-1.1.2-unsigned.apk` (sign it, see below)
+- `android/dist/antelope-hub-1.2.0-unsigned.apk` (sign it, see below)
 - `android/dist/web/`: the web bundle, which you can serve with any static server (`python3 -m http.server -d android/dist/web`) to test in a browser
-- `desktop/release/antelope-hub-1.1.2-x86_64.AppImage` and `desktop/release/antelope-hub-1.1.2-amd64.deb`
+- `desktop/release/antelope-hub-1.2.0-x86_64.AppImage` and `desktop/release/antelope-hub-1.2.0-amd64.deb`
 
-Android only: `cd android && npm install && npm run build` (or `npm run build:web` for just the web bundle).
+Android only: `cd android && npm ci && npm run build` (or `npm run build:web` for just the web bundle). `npm ci` installs the exact versions in `package-lock.json`, including the WebAuth wallet plugin that goes into the app.
 
 ## How the build works (`android/build.mjs`)
 
 1. Extract the web bundle from the base APK, and prettify it so patches are stable.
 2. Apply `src/patches.mjs`, a list of exact-text edits to the original bundle. Each anchor must match exactly once, or the build stops.
 3. Rewrite WAX-only values (symbols, precision, explorers) so they follow the active network (`chainify.mjs`).
-4. Inject `src/chain.js` (the network registry), then compile and inject the feature layer: every `src/*.jsx`, plus `src/alcorcheck.js`.
+4. Inject `src/chain.js` (the network registry), then compile and inject the feature layer: every `src/*.jsx`, plus `src/alcorcheck.js`, and XPR Network's WebAuth wallet plugin (`@proton/wharfkit-plugin-webauth`, bundled as `WHWebAuth`).
 5. Minify, and add `src/ext.css`.
-6. Rebrand. `brand.py` redraws icons and splash screens, `arsc.py` sets the launcher label, and `axml.py` sets the version from `android/package.json` (`version` 1.1.2, `androidVersionCode` 15).
+6. Rebrand. `brand.py` redraws icons and splash screens, `arsc.py` sets the launcher label, and `axml.py` sets the version from `android/package.json` (`version` 1.2.0, `androidVersionCode` 16).
 7. Repack the APK, keeping every entry's original compression (`repack.py`). WebView debugging and plain-HTTP traffic stay disabled.
 
 ### Source files (`android/src/`)
@@ -38,17 +38,19 @@ Android only: `cd android && npm install && npm run build` (or `npm run build:we
 |---|---|
 | `patches.mjs` | Edits to the original bundle (navigation, tool list, branding, voting rules, safety guards) |
 | `chain.js` | Network registry: RPC nodes, APIs, contracts and features per network |
-| `chains.jsx` | Network picker and per-network feature rules |
+| `chains.jsx` | Network picker, per-network feature rules, Vaulta card, PowerUp pricing (`WHPOWER`), A for resources (`WHFUEL`) and the PowerUp tool |
 | `ext.jsx`, `ext.css` | Core UX: helpers, sheets, onboarding, quick actions, styles |
 | `rescue.jsx` | Rescue & recover scanners |
 | `console.jsx` | Contract console |
+| `media.jsx` | NFT pictures and videos from IPFS gateways (hedged race, lazy loading) |
+| `packs.jsx` | Finding the packs an account owns |
 | `drops.jsx`, `creator.jsx` | Drops and Creator studio (AtomicAssets, with an on-chain reader where there's no indexer) |
 | `native.jsx` | Network essentials (REX, RAM, names, XPR staking, Libre) |
 | `bridges.jsx` | Bridges, plus Telos Decide voting |
 | `account.jsx` | Guided account creation |
 | `telos.jsx` | Telos studio |
 | `alcor.jsx`, `alcorcheck.js` | Cross-chain (Alcor), plus the on-device deposit-address check |
-| `xpr.jsx` | XPR DeFi |
+| `xpr.jsx` | XPR DeFi: LOAN, SimpleDEX, Metal X trading, oracle prices, WebAuth profiles |
 | `qrcode.jsx` | QR codes drawn on the device (vendored qrcode-generator, MIT) |
 
 ## Sign the APK

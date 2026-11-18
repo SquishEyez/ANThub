@@ -7,8 +7,9 @@
 // - the page is served only on 127.0.0.1, with no directory listings and no
 //   files outside the bundle
 // - popups are allowed only for wallet sign-in (WAX Cloud Wallet and the
-//   identity providers it uses); every other link opens in the system browser
-// - anchor:// and esr:// links (Anchor wallet) are handed to the OS
+//   identity providers it uses, and WebAuth on XPR Network); every other link
+//   opens in the system browser
+// - anchor://, esr:// (Anchor) and proton:// (WebAuth app) links are handed to the OS
 // - camera, microphone, location and similar permissions are denied
 const { app, BrowserWindow, shell, session, Menu } = require("electron");
 const http = require("node:http");
@@ -20,6 +21,7 @@ const PORTS = [47321, 47322, 47323, 47324, 47325]; // fixed so local settings pe
 const POPUP_HOSTS = [
   "mycloudwallet.com",
   "wax.io",
+  "webauth.com",
   "accounts.google.com",
   "appleid.apple.com",
   "www.facebook.com",
@@ -51,7 +53,7 @@ const hostAllowed = (u) => {
   }
 };
 const openOutside = (u) => {
-  if (/^(https?|anchor|esr):/i.test(u)) shell.openExternal(u);
+  if (/^(https?|anchor|esr|proton):/i.test(u)) shell.openExternal(u);
 };
 
 function serve() {

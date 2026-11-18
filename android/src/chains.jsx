@@ -25,7 +25,7 @@ const WHGATE = (() => {
   };
   const subTools = {
     vote: true,
-    power: !!WHCHAIN.powerup,
+    power: !!(WHCHAIN.powerup || WHCHAIN.rexRent),
     account: !!WHCHAIN.staking,
     history: WHCHAIN.hyperion.length > 0,
     portfolio: !!WHCHAIN.delphi && H("swap.alcor"),
@@ -74,7 +74,7 @@ function WH_ChainSheet({ open, onClose, signedIn }) {
           c.atomic.length ? "NFTs" : null,
           c.contracts === "*" || (c.contracts || []).some((x) => /drops|blend/.test(x)) ? "Drops" : null,
           c.contracts === "*" || (c.contracts || []).includes("swap.alcor") ? "Swaps" : null,
-          c.freeResources ? "Free resources" : c.powerup ? "PowerUp" : null,
+          c.freeResources ? "Free resources" : c.powerup ? "PowerUp" : c.rexRent ? "CPU rental" : null,
           c.cloudWallet ? "Cloud Wallet" : null,
         ].filter(Boolean);
         return (
@@ -97,6 +97,51 @@ function WH_ChainSheet({ open, onClose, signedIn }) {
     </WH_Sheet>
   );
 }
+
+/* PowerUp pricing for any chain whose system contract runs eosio::powerup. The
+   fee follows powerup.cpp (calc_powerup_fee) from the live powup.state table, and
+   a CPU time / NET size is turned into a fraction of the network through
+   eosio.reserv, the account that holds all PowerUp capacity. */
+const WHPOWER = (() => {
+  const num = (x) => Number(String(x ?? 0).split(" ")[0]) || 0;
+  function fee(r, inc) {
+    if (!(inc > 0)) return 0;
+    const w = Number(r.weight), ex = Number(r.exponent), mn = num(r.min_price), mx = num(r.max_price);
+    const price = (u) => mn + (mx - mn) * Math.pow(u / w, ex - 1);
+    const integral = (a, b) => mn * (b / w) - mn * (a / w) + ((mx - mn) / ex) * (Math.pow(b / w, ex) - Math.pow(a / w, ex));
+    let start = Number(r.utilization);
+    const end = start + inc, adj = Number(r.adjusted_utilization);
+    let f = 0;
+    if (start < adj) {
+      f += (price(adj) * Math.min(inc, adj - start)) / w;
+      start = adj;
+    }
+    if (start < end) f += integral(start, end);
+    return f;
+  }
+  // null when the chain has no PowerUp (e.g. Telos: "powerup hasn't been initialized")
+  async function market() {
+    const [st, reserv] = await Promise.all([
+      qr({ code: "eosio", scope: "", table: "powup.state", limit: 1 }).then((x) => (x.rows || [])[0]).catch(() => null),
+      FC("eosio.reserv").catch(() => null),
+    ]);
+    if (!st || !reserv || !(Number(st.cpu?.weight) > 0)) return null;
+    return { st, reserv };
+  }
+  // fractions and fee (in the core token) for `cpuUs` microseconds of CPU and `netBytes` of NET for a day
+  function size({ st, reserv }, cpuUs, netBytes) {
+    const cpuPerW = Number(reserv.cpu_limit.max) / Number(reserv.cpu_weight);
+    const netPerW = Number(reserv.net_limit.max) / Number(reserv.net_weight);
+    const cpuAmt = cpuUs / cpuPerW, netAmt = netBytes / netPerW;
+    const cpu_frac = Math.ceil((cpuAmt * 1e15) / Number(st.cpu.weight));
+    const net_frac = Math.ceil((netAmt * 1e15) / Number(st.net.weight));
+    const f = Math.max(fee(st.cpu, cpuAmt) + fee(st.net, netAmt), num(st.min_powerup_fee));
+    // a little headroom: the price moves with every rental
+    const max = Math.ceil((f * 1.5 + 10 ** -WHCHAIN.prec * 5) * 10 ** WHCHAIN.prec) / 10 ** WHCHAIN.prec;
+    return { cpu_frac: String(cpu_frac), net_frac: String(net_frac), fee: f, max };
+  }
+  return { fee, market, size };
+})();
 
 /* Resources paid in A (Vaulta). An account that moved everything to A (stake
    included) has no CPU/NET left, so nothing it signs goes through, not even an
@@ -129,22 +174,6 @@ const WHFUEL = (() => {
     } catch {}
   };
   const usable = () => !!WHCHAIN.vaulta?.converts;
-  // powerup.cpp: calc_powerup_fee (in the core token)
-  function fee(r, inc) {
-    if (!(inc > 0)) return 0;
-    const w = Number(r.weight), ex = Number(r.exponent), mn = num(r.min_price), mx = num(r.max_price);
-    const price = (u) => mn + (mx - mn) * Math.pow(u / w, ex - 1);
-    const integral = (a, b) => mn * (b / w) - mn * (a / w) + ((mx - mn) / ex) * (Math.pow(b / w, ex) - Math.pow(a / w, ex));
-    let start = Number(r.utilization);
-    const end = start + inc, adj = Number(r.adjusted_utilization);
-    let f = 0;
-    if (start < adj) {
-      f += (price(adj) * Math.min(inc, adj - start)) / w;
-      start = adj;
-    }
-    if (start < end) f += integral(start, end);
-    return f;
-  }
   const bal = (me, code, sym) =>
     qr({ code, scope: me, table: "accounts", limit: 20 }).then((x) => num((x.rows || []).find((b) => String(b.balance).endsWith(" " + sym))?.balance)).catch(() => 0);
   // How much A and EOS a transaction moves out of the account (tokens it sends
@@ -170,10 +199,9 @@ const WHFUEL = (() => {
   // bought together with a PowerUp, which is what needs it.
   async function quote(me, force = false, spend = { a: 0, e: 0, aIn: 0 }) {
     const V = WHCHAIN.vaulta;
-    const [acct, st, reserv, ram, aBal] = await Promise.all([
+    const [acct, mkt, ram, aBal] = await Promise.all([
       FC(me),
-      qr({ code: "eosio", scope: "", table: "powup.state", limit: 1 }).then((x) => (x.rows || [])[0]),
-      FC("eosio.reserv"),
+      WHPOWER.market(),
       qr({ code: "eosio", scope: "eosio", table: "rammarket", limit: 1 }).then((x) => (x.rows || [])[0]),
       bal(me, V.contract, V.sym),
     ]);
@@ -191,16 +219,11 @@ const WHFUEL = (() => {
       cost += ((quoteBal * RAM_BYTES) / (base - RAM_BYTES)) * 1.005 * 1.1;
       acts.push({ account: V.contract, name: "buyrambytes", data: { payer: me, receiver: me, bytes: RAM_BYTES } });
     }
-    // PowerUp sized for TARGET_US / TARGET_NET, priced like powerup.cpp
-    const cpuPerW = Number(reserv.cpu_limit.max) / Number(reserv.cpu_weight);
-    const netPerW = Number(reserv.net_limit.max) / Number(reserv.net_weight);
-    const cpuAmt = TARGET_US / cpuPerW, netAmt = TARGET_NET / netPerW;
-    const cpu_frac = Math.ceil((cpuAmt * 1e15) / Number(st.cpu.weight));
-    const net_frac = Math.ceil((netAmt * 1e15) / Number(st.net.weight));
-    const f = Math.max(fee(st.cpu, cpuAmt) + fee(st.net, netAmt), num(st.min_powerup_fee));
-    const max = Math.ceil((f * 1.5 + 0.0005) * 1e4) / 1e4;
+    // PowerUp sized for TARGET_US / TARGET_NET (WHPOWER), paid in A through core.vaulta
+    const pu = WHPOWER.size(mkt, TARGET_US, TARGET_NET);
+    const max = Math.ceil((pu.fee * 1.5 + 0.0005) * 1e4) / 1e4;
     cost += max;
-    acts.push({ account: V.contract, name: "powerup", data: { payer: me, receiver: me, days: 1, net_frac: String(net_frac), cpu_frac: String(cpu_frac), max_payment: `${max.toFixed(V.prec)} ${V.sym}` } });
+    acts.push({ account: V.contract, name: "powerup", data: { payer: me, receiver: me, days: 1, net_frac: pu.net_frac, cpu_frac: pu.cpu_frac, max_payment: `${max.toFixed(V.prec)} ${V.sym}` } });
     cost = Math.ceil(cost * 1e4) / 1e4;
     // Pay in A when the A left after the transaction covers it; otherwise convert
     // the difference from EOS first (1:1 through core.vaulta, at the very front).
@@ -230,7 +253,7 @@ const WHFUEL = (() => {
     WH.toast(`Out of ${[q.short.cpu && "CPU", q.short.net && "NET", q.short.ram && "RAM"].filter(Boolean).join(" / ")}: adding resources paid in A (up to ${q.cost} A) to this transaction.`, "info");
     return q.acts;
   }
-  return { on, set, usable, quote, plan, fee };
+  return { on, set, usable, quote, plan };
 })();
 
 /* Vaulta ($A) on the EOS network: A and EOS convert 1:1 through core.vaulta.
@@ -377,5 +400,158 @@ function WH_Vaulta({ balances, session, account, viewing, toast, onDone }) {
         </button>
       </WH_Sheet>
     </div>
+  );
+}
+
+/* Chain tools -> PowerUp. Replaces WAX Hub's original form, which always asked for
+   1.5% of the whole network (a 15e12 fraction), so the quote was hundreds of WAX
+   and every attempt failed against its 1 WAX cap (checked by dry run). Here you
+   pick CPU time and NET, see the real price, and sign a rental sized to match.
+   Chains without PowerUp (Telos) rent through REX instead: deposit + rentcpu/rentnet. */
+const WH_PU_PRESETS = [
+  ["light", "Light", 5000, 10 * 1024],
+  ["normal", "Normal", 20000, 50 * 1024],
+  ["heavy", "Heavy", 100000, 200 * 1024],
+];
+
+function WH_PowerUp({ me, open, ready, toast }) {
+  const V = WHCHAIN.vaulta;
+  const [mkt, setMkt] = De.useState(undefined);
+  const [rex, setRex] = De.useState(null);
+  const [preset, setPreset] = De.useState("normal");
+  const [cpuMs, setCpuMs] = De.useState("20");
+  const [netKb, setNetKb] = De.useState("50");
+  const [recv, setRecv] = De.useState("");
+  const [payA, setPayA] = De.useState(!!V?.converts);
+  const [rent, setRent] = De.useState("1");
+  De.useEffect(() => {
+    WHPOWER.market().then(setMkt).catch(() => setMkt(null));
+    qr({ code: "eosio", scope: "eosio", table: "rexpool", limit: 1 }).then((x) => setRex((x.rows || [])[0] || null)).catch(() => setRex(null));
+  }, []);
+  const pick = (k) => {
+    const p = WH_PU_PRESETS.find((x) => x[0] === k);
+    setPreset(k);
+    if (p) (setCpuMs(String(p[2] / 1000)), setNetKb(String(p[3] / 1024)));
+  };
+  const target = (recv || me || "").trim();
+  const okTo = !recv || WH.checkAccountName(recv).ok;
+  if (mkt === undefined) return <div className="faint">Reading PowerUp prices…</div>;
+
+  // Telos and others without PowerUp: rent CPU/NET from REX for 30 days
+  if (!mkt) {
+    const n = Number(String(rent).replace(",", "."));
+    const unlent = rex ? Number(String(rex.total_unlent).split(" ")[0]) : 0;
+    const totalRent = rex ? Number(String(rex.total_rent).split(" ")[0]) : 0;
+    const stake = n > 0 && rex ? (unlent * n) / (totalRent + n) : 0; // REX bancor: tokens lent for the payment
+    const q = (x) => `${x.toFixed(WHCHAIN.prec)} ${WHCHAIN.sym}`;
+    return (
+      <>
+        <p className="sub">{WHCHAIN.name} rents CPU through REX instead of PowerUp: you pay a small fee and get {WHCHAIN.sym} staked to your CPU for 30 days.</p>
+        <WH_AmountInput label="Pay for CPU" value={rent} symbol={WHCHAIN.sym} onChange={setRent} />
+        <div className="kv">
+          <span className="muted">You get about</span>
+          <span>{stake ? `${NV.fmt(stake, 2)} ${WHCHAIN.sym} staked to CPU, 30 days` : "—"}</span>
+        </div>
+        <CR_F label="For account (defaults to you)">
+          <input className={`input ${okTo ? "" : "wh-invalid"}`} value={recv} placeholder={me || "account"} onChange={(ev) => setRecv(ev.target.value.trim().toLowerCase())} autoCapitalize="none" />
+        </CR_F>
+        <button
+          className="btn primary block"
+          disabled={!(n > 0) || !okTo}
+          onClick={() =>
+            ready() &&
+            open({
+              title: "Rent CPU from REX",
+              details: [{ label: "Pay", value: q(n) }, { label: "For", value: target }, { label: "You get", value: `≈ ${NV.fmt(stake, 2)} ${WHCHAIN.sym} staked to CPU for 30 days` }],
+              warning: "The payment goes into your REX fund first, then rents the CPU. It isn't refunded.",
+              actions: [
+                { account: "eosio", name: "deposit", data: { owner: me, amount: q(n) } },
+                { account: "eosio", name: "rentcpu", data: { from: me, receiver: target, loan_payment: q(n), loan_fund: q(0) } },
+              ],
+            })
+          }
+        >
+          Review rental
+        </button>
+      </>
+    );
+  }
+
+  const cpuUs = Math.max(0, Number(String(cpuMs).replace(",", ".")) * 1000) || 0;
+  const netB = Math.max(0, Number(String(netKb).replace(",", ".")) * 1024) || 0;
+  const pu = cpuUs || netB ? WHPOWER.size(mkt, cpuUs, netB) : null;
+  const sym = payA ? V.sym : WHCHAIN.sym;
+  const prec = payA ? V.prec : WHCHAIN.prec;
+  const maxQ = pu ? `${pu.max.toFixed(prec)} ${sym}` : "";
+  return (
+    <>
+      <p className="sub">Rent CPU and NET for 24 hours. Pick how much; the price comes from the network's PowerUp market right now.</p>
+      <div className="tabs">
+        {WH_PU_PRESETS.map(([k, label]) => (
+          <button key={k} className={`tab ${preset === k ? "on" : ""}`} onClick={() => pick(k)}>
+            {label}
+          </button>
+        ))}
+        <button className={`tab ${preset === "custom" ? "on" : ""}`} onClick={() => setPreset("custom")}>
+          Custom
+        </button>
+      </div>
+      {preset === "custom" ? (
+        <div style={{ display: "flex", gap: 10 }}>
+          <CR_F label="CPU (ms)">
+            <input className="input" inputMode="decimal" value={cpuMs} onChange={(ev) => setCpuMs(ev.target.value)} />
+          </CR_F>
+          <CR_F label="NET (KB)">
+            <input className="input" inputMode="decimal" value={netKb} onChange={(ev) => setNetKb(ev.target.value)} />
+          </CR_F>
+        </div>
+      ) : (
+        <div className="faint" style={{ fontSize: 12.5, margin: "0 0 8px" }}>
+          {cpuMs} ms CPU and {netKb} KB NET for 24 hours. A simple transfer uses about 0.2–0.5 ms.
+        </div>
+      )}
+      <CR_F label="For account (defaults to you)">
+        <input className={`input ${okTo ? "" : "wh-invalid"}`} value={recv} placeholder={me || "account"} onChange={(ev) => setRecv(ev.target.value.trim().toLowerCase())} autoCapitalize="none" />
+      </CR_F>
+      {V?.converts && (
+        <div className="tabs">
+          <button className={`tab ${payA ? "on" : ""}`} onClick={() => setPayA(true)}>
+            Pay in {V.sym}
+          </button>
+          <button className={`tab ${!payA ? "on" : ""}`} onClick={() => setPayA(false)}>
+            Pay in {WHCHAIN.sym}
+          </button>
+        </div>
+      )}
+      <div className="kv">
+        <span className="muted">Price now</span>
+        <span>{pu ? `${NV.fmt(pu.fee, prec)} ${sym}` : "—"}</span>
+      </div>
+      <div className="kv">
+        <span className="muted">Most you'll pay</span>
+        <span>{maxQ || "—"}</span>
+      </div>
+      <button
+        className="btn primary block"
+        disabled={!pu || !okTo}
+        onClick={() =>
+          ready() &&
+          open({
+            title: "PowerUp CPU / NET",
+            details: [
+              { label: "For", value: target },
+              { label: "CPU", value: `${cpuMs} ms for 24h` },
+              { label: "NET", value: `${netKb} KB for 24h` },
+              { label: "Price now", value: `${NV.fmt(pu.fee, prec)} ${sym}` },
+              { label: "Most you'll pay", value: maxQ },
+            ],
+            warning: "You pay the price at the moment the transaction runs, never more than the maximum shown. If the price has gone above it, nothing is spent.",
+            actions: [{ account: payA ? V.contract : "eosio", name: "powerup", data: { payer: me, receiver: target, days: 1, net_frac: pu.net_frac, cpu_frac: pu.cpu_frac, max_payment: maxQ } }],
+          })
+        }
+      >
+        Review PowerUp
+      </button>
+    </>
   );
 }

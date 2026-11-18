@@ -16,7 +16,7 @@ const WHCHAINS = {
     id: "1064487b3cd1a897ce03ae5b6a865651747e2e152090f99c1d19d44e01aea5a4",
     sym: "WAX",
     prec: 8,
-    rpc: ["https://wax.greymass.com", "https://wax.eosusa.io", "https://apiwax.3dkrender.com", "https://wax.pink.gg", "https://wax.eosphere.io", "https://wax.eosrio.io", "https://api.waxsweden.org"],
+    rpc: ["https://wax.greymass.com", "https://wax.eosusa.io", "https://wax.eosphere.io", "https://wax.eosrio.io", "https://api.waxsweden.org"],
     atomic: ["https://wax.api.atomicassets.io", "https://wax-atomic-api.eosphere.io", "https://atomic.wax.eosrio.io"],
     hyperion: ["https://wax.eosusa.io", "https://api.waxsweden.org", "https://wax.eosrio.io"],
     lightapi: "wax",
@@ -62,7 +62,7 @@ const WHCHAINS = {
     id: "4667b205c6838ef70ff7988f6e8257e8be0e1284a2f59699054a018f743b1d11",
     sym: "TLOS",
     prec: 4,
-    rpc: ["https://telos.greymass.com", "https://telos.eosusa.io", "https://telos.api.eosnation.io"],
+    rpc: ["https://telos.greymass.com", "https://telos.eosusa.io"],
     atomic: [],
     hyperion: ["https://telos.eosusa.io"],
     lightapi: "telos",
@@ -71,7 +71,9 @@ const WHCHAINS = {
     explorer: { tx: "https://explorer.telos.net/transaction/", acct: "https://explorer.telos.net/account/" },
     staking: true,
     ram: true,
-    powerup: true,
+    // Telos never switched PowerUp on ("powerup hasn't been initialized"); CPU is rented from REX
+    powerup: false,
+    rexRent: true,
     contracts: ["atomicassets", "atomicmarket", "atomictoolsx", "blend.nefty", "swap.alcor", "delphioracle", "book.alcor", "telos.decide", "works.decide", "amend.decide", "tf", "eosio.evm", "bridge.alcor", "simpleassets"],
   },
   xpr: {
@@ -92,6 +94,8 @@ const WHCHAINS = {
     explorer: { tx: "https://explorer.xprnetwork.org/transaction/", acct: "https://explorer.xprnetwork.org/account/" },
     freeResources: true,
     ram: true,
+    // sign in with WebAuth, XPR Network's own wallet, as well as Anchor
+    webauth: true,
     contracts: ["atomicassets", "atomicmarket", "atomictoolsx", "atomicdropsx", "blend.nefty", "swap.alcor", "delphioracle", "dex", "book.alcor"],
   },
   libre: {
@@ -103,7 +107,8 @@ const WHCHAINS = {
     id: "38b1d7815474d0c60683ecbea321d723e83f5da6ae5f1c1f9fecc69d9ba96465",
     sym: "LIBRE",
     prec: 4,
-    rpc: ["https://libre.greymass.com", "https://libre.eosusa.io"],
+    // libre.eosusa.io: history (Hyperion) only; its chain API answers 500 (checked 2026-11)
+    rpc: ["https://libre.greymass.com"],
     atomic: [],
     hyperion: ["https://libre.eosusa.io"],
     lightapi: "libre",
