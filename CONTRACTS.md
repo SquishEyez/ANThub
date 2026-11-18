@@ -168,3 +168,9 @@ Base `https://telos.alcor.exchange/api/bridge/v1` (public, no key).
 | `eosio` (XPR) | `voteproducer` with exactly 4 producers, `voterclaim` | `get_producers` (active only) |
 | `eosio.proton` | none | `usersinfo`, `kycproviders` |
 | `oracles` | none | `feeds`, `data` |
+
+## Packs and NFT media
+
+- **Finding packs**: `atomicpacksx`, `neftyblocksp` and `nfthivepacks` have no owner index, but each `packs` table has a secondary index on the template id (index 2, `i64`: `pack_template_id`, or `template_id` on NFTHive). The app takes the templates an account owns (AtomicAssets API `/accounts/{account}`, or the `atomicassets` `assets` table scope = account) and looks them up there. For 250 templates or fewer, it jumps through index 2. For more, it builds a template → pack id index of the whole table once (in parallel, by primary key) and keeps it on the device. Unbox: `atomicassets::transfer` of the pack to the contract with memo `unbox` (`unpack` on NFTHive). Checked by dry run: it calls `orng.wax::requestrand`.
+- **IPFS gateways** (late 2026): `ipfs.atomichub.io` and `atomichub-ipfs.com` have no DNS, `cloudflare-ipfs.com` doesn't resolve, `ipfs.neftyblocks.io` is parked, and `ipfs.io` and `dweb.link` answer 429. Working: `ipfs.eosdac.io`, `resizer.atomichub.io/images/v1/preview?ipfs=<cid>&size=370` and `ipfs.alienworlds.io` (same findings as [Zigm4/crucible](https://github.com/Zigm4/crucible)). The app races them with a 1.2 s head start each.
+

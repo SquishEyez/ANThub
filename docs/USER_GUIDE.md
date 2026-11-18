@@ -90,7 +90,8 @@ Balances with USD values, plus send and receive. You'll also find staking (CPU/N
 | **Rescue & recover** | Finds value stuck in contracts and gets it back |
 | **Contract console** | Use any contract directly (see section 5) |
 | **Creator studio** | NFT collections, schemas, templates, minting, drops and blends (AtomicAssets) |
-| **DEX & swaps, Packs, WAXDAO** | Where the network has them |
+| **Packs** (WAX) | Your unopened AtomicHub, NeftyBlocks and NFTHive packs, with an Open button, plus reveals waiting to be claimed |
+| **DEX & swaps, WAXDAO** | Where the network has them |
 | **Chain tools** | Vote for producers, PowerUp, account and resources, history, portfolio, QR codes, watch list, claim links |
 
 Search on the More screen filters every tool and quick action.
