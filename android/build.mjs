@@ -87,7 +87,7 @@ for (const [from, to] of replace) {
 }
 
 // 3. inject the UX layer at module scope, right before the app code
-const ext = await esbuild.transform(["qrcode.jsx", "alcorcheck.js", "ext.jsx", "chains.jsx", "rescue.jsx", "console.jsx", "drops.jsx", "creator.jsx", "native.jsx", "bridges.jsx", "account.jsx", "telos.jsx", "alcor.jsx", "xpr.jsx"].map((f) => fs.readFileSync(path.join(here, "src", f), "utf8")).join("\n"), {
+const ext = await esbuild.transform(["qrcode.jsx", "alcorcheck.js", "ext.jsx", "media.jsx", "chains.jsx", "rescue.jsx", "console.jsx", "drops.jsx", "packs.jsx", "creator.jsx", "native.jsx", "bridges.jsx", "account.jsx", "telos.jsx", "alcor.jsx", "xpr.jsx"].map((f) => fs.readFileSync(path.join(here, "src", f), "utf8")).join("\n"), {
   loader: "jsx",
   jsxFactory: "De.createElement",
   jsxFragment: "De.Fragment",

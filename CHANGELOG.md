@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1: Packs and NFT images
+
+- **NFT images show again.** The IPFS gateways the app used have shut down: two no longer exist, one was retired in 2024, and ipfs.io now refuses with "too many requests". Images now come from gateways that still serve WAX NFT media: ipfs.eosdac.io, AtomicHub's image service (resizer.atomichub.io) and ipfs.alienworlds.io. Each gets a short head start before the next joins in, and the first that loads wins, so a hanging gateway no longer leaves a blank card. Images load as they scroll into view, without sending which page you're on (no referrer). Images saved as links to a dead gateway are fetched from a working one, and NFTs that only have a video now show it
+- **Packs lists your packs.** It used to list your 80 newest NFTs of any kind and the newest 40 pack definitions on the contract. It now finds the packs you actually own on AtomicHub, NeftyBlocks and NFTHive, through each contract's template index. They're grouped with picture, count and unlock time, with an Open button. Big collections build a small pack index once and keep it on the device
+- **Creator studio** previews use the same image loader
+
 ## 1.1.0: Wombat, A for resources, more bridges
 
 - **Bridges: send WAX to Ethereum**: native WAX goes out through the official WAX Bridge (`bridge.wax`) and arrives as WAXP, the ERC-20 on Ethereum. Minimum and limits are read from the contract (10 WAX minimum today)

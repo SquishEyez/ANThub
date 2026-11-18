@@ -7,6 +7,8 @@ export const between = [
   ["function Qi({", "function $e({", "function Qi(p) {\n  return N.jsx(WH_Sheet, p);\n}\n"],
   ["function dM({", "function g1({", "function dM(p) {\n  return N.jsx(WH_Toast, p);\n}\n"],
   ["function Ko({", "function Xa({", "function Ko(p) {\n  return N.jsx(WH_Empty, p);\n}\n"],
+  // NFT images: hedged race across gateways that still work (media.jsx)
+  ["function Xa({", "function uo(p) {", "function Xa(p) {\n  return N.jsx(WH_Media, p);\n}\n"],
 ];
 
 export const replace = [
@@ -706,7 +708,7 @@ export const replace = [
   [`                          children: B.net_weight || "—",`, `                          children: B.net_weight ? WH.trimAsset(B.net_weight) : "—",`],
 
   /* ================================================== Multi-chain */
-  [`z9 = "2.1",`, `z9 = "1.1",`],
+  [`z9 = "2.1",`, `z9 = "1.1.1",`],
   // Cloud Wallet only exists on WAX; Anchor covers every chain
   [
     `      walletPlugins: [
@@ -1108,4 +1110,97 @@ export const replace = [
         .then((P) => P.filter((p) => p.is_active === void 0 || Number(p.is_active) === 1))
         .then(x)`,
   ],
+  /* ================================================== Packs: list the packs you own (packs.jsx) */
+  // The original listed the newest 80 NFTs of any kind and the newest 40 pack
+  // definitions on the contract; now it finds the account's actual packs.
+  [
+    `      const ee =
+        (
+          await qr({
+            code: i.contract,
+            scope: i.contract,
+            table: "packs",
+            limit: 40,
+            reverse: !0,
+          })
+        ).rows || [];
+      if ((c(ee), a)) {
+        const oe = await to(
+          \`/atomicassets/v1/assets?owner=\${a}&page=1&limit=80&order=desc\`,
+        );
+        if ((f(oe.data || []), i.id === "atomic")) {`,
+    `      c(a ? null : []), f([]);
+      if (a) {
+        const oe = await WHPACKS.owned(a, i.contract).catch((er) => (r(\`Couldn't list your packs: \${er?.message || er}\`, "error"), []));
+        c(oe), f(oe);
+        if (i.id === "atomic") {`,
+  ],
+  [
+    `      N.jsx("h2", { children: "Recent packs" }),
+      l.length === 0 && N.jsx(Ko, { title: "No pack rows on this page" }),
+      l
+        .slice(0, 20)
+        .map((ee) =>
+          N.jsx(
+            "div",
+            {
+              className: "card",
+              children: N.jsxs("div", {
+                className: "row",
+                children: [
+                  N.jsxs("div", {
+                    children: [
+                      N.jsx("b", { children: ee.collection_name }),
+                      N.jsxs("div", {
+                        className: "muted",
+                        style: { fontSize: 12 },
+                        children: [
+                          "pack #",
+                          ee.pack_id,
+                          " · template ",
+                          ee.pack_template_id ?? ee.template_id,
+                        ],
+                      }),
+                    ],
+                  }),
+                  N.jsxs("span", {
+                    className: "pill",
+                    children: [
+                      "unlock ",
+                      ee.unlock_time
+                        ? new Date(ee.unlock_time * 1e3).toLocaleDateString()
+                        : "—",
+                    ],
+                  }),
+                ],
+              }),
+            },
+            ee.pack_id,
+          ),
+        ),`,
+    `      N.jsx("h2", { children: "Your packs" }),
+      N.jsx(WH_MyPacks, {
+        packs: l,
+        signedIn: !!a,
+        onOpen: (id, name) =>
+          t
+            ? R({
+                title: \`Unbox on \${i.label}\`,
+                details: [
+                  { label: "Pack", value: name },
+                  { label: "Asset", value: id },
+                  { label: "Contract", value: i.contract },
+                  { label: "Memo", value: i.memo },
+                ],
+                warning: "The pack NFT is transferred to the contract. When the chain's randomness replies, the reveal appears under Pending reveals below.",
+                actions: [Jl(a, i.contract, [id], i.memo)],
+              })
+            : e(),
+      }),`,
+  ],
+  // NFTs whose only media is a video (e.g. a "video" attribute and no "img")
+  ...["    t?.collection?.img ||\n    null\n  );\n}\nfunction Ha(t) {", "    t?.collection?.img\n  );\n}\nfunction Oo(t) {"].map((tail) => [
+    `    t?.template?.immutable_data?.img ||\n${tail}`,
+    `    t?.template?.immutable_data?.img ||\n    t?.template?.immutable_data?.image ||\n    t?.data?.video ||\n    t?.template?.immutable_data?.video ||\n${tail}`,
+  ]),
 ];

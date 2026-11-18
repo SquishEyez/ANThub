@@ -189,8 +189,7 @@ const WHCR = (() => {
   const toMap = (obj, fmt) =>
     fmt.map((f) => ({ key: f.name, v: attr(f.type, obj[f.name]) })).filter((x) => x.v).map((x) => ({ key: x.key, value: x.v }));
   const nameOk = (v) => /^[a-z1-5.]{1,12}$/.test(v) && !v.endsWith(".");
-  const ipfsImg = (v) => (!v ? null : /^https?:/.test(v) ? v : `https://ipfs.io/ipfs/${v.replace(/^ipfs:\/\//, "")}`);
-  return { TYPES, PRESETS, attr, toMap, nameOk, ipfsImg };
+  return { TYPES, PRESETS, attr, toMap, nameOk };
 })();
 
 function CR_Help({ children, title = "How this works" }) {
@@ -473,7 +472,7 @@ function CR_Collection({ me, col, setCol, colInfo, isAuth, ask }) {
         </CR_F>
         {f.img && (
           <div className="cr-preview-logo">
-            <img src={WHCR.ipfsImg(f.img)} alt="" onError={(ev) => (ev.currentTarget.style.opacity = 0.2)} />
+            <WH_Media src={f.img} alt="" />
           </div>
         )}
         <CR_F label="Description">
@@ -732,7 +731,7 @@ function CR_Template({ me, col, isAuth, schemas, templates, ask, setStep }) {
           </div>
           <div className="label">Preview</div>
           <div className="cr-preview">
-            <div className="nft-media">{img ? <img src={WHCR.ipfsImg(img)} alt="" /> : <div className="nft-ph">Add an img to preview</div>}</div>
+            <div className="nft-media">{img ? <WH_Media src={img} alt="" /> : <div className="nft-ph">Add an img to preview</div>}</div>
             <div className="nft-meta">
               <div className="name">{vals.name || "Unnamed"}</div>
               <div className="col">
