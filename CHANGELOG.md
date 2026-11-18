@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0: Metal X trading, WebAuth sign-in, working PowerUp
+
+- **Sign in with WebAuth on XPR Network.** WebAuth now sits next to Anchor on the sign-in screen. On a phone it opens the WebAuth app; on a computer you scan the QR code or use webauth.com. It uses XPR Network's official WharfKit plugin.
+- **Choosing a wallet now sticks.** Tapping a wallet on the sign-in screen used to open WharfKit's own wallet list again (a bug from WAX Hub). It now goes straight to the wallet you picked.
+- **Metal X trading** (XPR DeFi): buy and sell with limit or market orders on every Metal X market. Prices and fees are shown, and each order goes out in one transaction (deposit with an empty memo, `placeorder`, `process`). Open orders show the right amounts (no more `1.9e-7`).
+- **PowerUp works.** WAX Hub's PowerUp form always asked for about 1.5% of the whole network (hundreds of WAX), so it failed every time. Now you pick Light, Normal, Heavy or Custom, see the live price (for example 100 ms CPU for about 0.02 WAX), and pay in EOS or A on EOS.
+- **Telos**: Telos never turned PowerUp on, so the same tool now rents CPU from REX for 30 days.
+- **XPR profile**: shows a KYC badge when the account has KYC; it no longer says "Not verified", since that flag isn't about KYC. The date shown is when the WebAuth profile was registered, not when the account was created.
+- **SimpleDEX**: the "You pay" list only shows tokens a pool trades, which hides look-alike tokens from other contracts.
+- **Removed**: the WAX DAO "free PowerUp" button (its contract has been broken since early 2026), and five dead network nodes (WAX, Telos, Libre fallbacks).
+
 ## 1.1.2: NFT pictures, checked on the real network
 
 - **Every NFT picture shows**, in the inventory, market, packs, collections and templates. Checked against the live image servers:

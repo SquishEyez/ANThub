@@ -142,7 +142,17 @@ export const replace = [
                   N.jsx("span", { className: "wh-wallet-name", children: "Anchor" }, "n"),
                   N.jsx("span", { className: "wh-wallet-desc", children: "Self-custody — keys stay in the Anchor app on your device." }, "d"),
                 ],
-              }),`,
+              }),
+              WHCHAIN.webauth &&
+                N.jsx("button", {
+                  className: "btn block wh-wallet-btn wh-webauth",
+                  disabled: v,
+                  onClick: () => w("webauth"),
+                  children: [
+                    N.jsx("span", { className: "wh-wallet-name", children: "WebAuth" }, "n"),
+                    N.jsx("span", { className: "wh-wallet-desc", children: "XPR Network's wallet app. Approve with your fingerprint or face in WebAuth on this phone, or scan the code from another device." }, "d"),
+                  ],
+                }),`,
   ],
   [
     `      x && N.jsx(dM, { msg: x.msg, type: x.type, onClose: () => k(null) }),`,
@@ -708,7 +718,7 @@ export const replace = [
   [`                          children: B.net_weight || "—",`, `                          children: B.net_weight ? WH.trimAsset(B.net_weight) : "—",`],
 
   /* ================================================== Multi-chain */
-  [`z9 = "2.1",`, `z9 = "1.1.2",`],
+  [`z9 = "2.1",`, `z9 = "1.2.0",`],
   // Cloud Wallet only exists on WAX; Anchor covers every chain
   [
     `      walletPlugins: [
@@ -730,6 +740,8 @@ export const replace = [
             ]
           : []),
         new vb(),
+        // XPR Network's own wallet (official @proton/wharfkit-plugin-webauth, see build.mjs)
+        ...(WHCHAIN.webauth ? [new WHWebAuth.WalletPluginWebAuth()] : []),
       ],`,
   ],
   // chains without LightAPI: go straight to the fallbacks
@@ -750,13 +762,17 @@ export const replace = [
     `                      "Connect with WAX Cloud Wallet or Anchor. Your keys stay in the wallet — this app only requests signatures.",`,
     `                      WHCHAIN.cloudWallet
                         ? "Connect with WAX Cloud Wallet or Anchor. Your keys stay in the wallet — this app only requests signatures."
-                        : "Connect with Anchor. Your keys stay in the wallet — this app only requests signatures.",`,
+                        : WHCHAIN.webauth
+                          ? "Connect with WebAuth or Anchor. Your keys stay in the wallet — this app only requests signatures."
+                          : "Connect with Anchor. Your keys stay in the wallet — this app only requests signatures.",`,
   ],
   [
     `                  "Cloud Wallet opens a secure window. Anchor uses a QR code or the Anchor app via a deep link (anchor:// / esr://). You can still browse without signing in.",`,
     `                  WHCHAIN.cloudWallet
                     ? "Cloud Wallet opens a secure window. Anchor uses a QR code or the Anchor app via a deep link (anchor:// / esr://). You can still browse without signing in."
-                    : "Anchor uses a QR code, or opens the Anchor app on this device. Make sure your account is added for this network in Anchor. You can still browse without signing in.",`,
+                    : WHCHAIN.webauth
+                      ? "WebAuth and Anchor each show a QR code, or open their app on this device. You can still browse without signing in."
+                      : "Anchor uses a QR code, or opens the Anchor app on this device. Make sure your account is added for this network in Anchor. You can still browse without signing in.",`,
   ],
   // chain chip in the top bar + chain sheet
   [
@@ -998,7 +1014,7 @@ export const replace = [
     `  {
     id: "xprdefi",
     title: "XPR DeFi",
-    blurb: "Lend and borrow on LOAN, swap and manage liquidity on SimpleDEX, cancel Metal X orders, oracle prices and your WebAuth profile",
+    blurb: "Lend and borrow on LOAN, swap and manage liquidity on SimpleDEX, trade on Metal X, oracle prices and your WebAuth profile",
     tag: "XPR only",
     keys: "loan lending borrow supply interest simpledex swap liquidity lp metal x metalx order cancel oracle price kyc profile webauth xpr",
   },
@@ -1203,4 +1219,106 @@ export const replace = [
     `    t?.template?.immutable_data?.img ||\n${tail}`,
     `    t?.template?.immutable_data?.img ||\n    t?.template?.immutable_data?.image ||\n    t?.data?.video ||\n    t?.template?.immutable_data?.video ||\n${tail}`,
   ]),
+  /* ================================================== Chain tools: a PowerUp that works (chains.jsx WH_PowerUp) */
+  // The original always asked for a 15e12 fraction (1.5% of the network): quotes of
+  // hundreds of WAX against a 1 WAX cap, so it never went through.
+  [
+    `            N.jsx("p", {
+              className: "sub",
+              children:
+                "Rent CPU/NET for 1 day via eosio::powerup. waxdao::powerup is also available if you qualify on that contract (no parameters).",
+            }),
+            N.jsx($e, {
+              label: "Max WAX to spend",
+              children: N.jsx("input", {
+                className: "input",
+                value: l.pay || "1.00000000",
+                onChange: (_) => c({ ...l, pay: _.target.value }),
+              }),
+            }),
+            N.jsx($e, {
+              label: "Receiver (defaults to you)",
+              children: N.jsx("input", {
+                className: "input",
+                value: l.recv || a,
+                onChange: (_) => c({ ...l, recv: _.target.value }),
+                autoCapitalize: "none",
+              }),
+            }),
+            N.jsx("button", {
+              className: "btn primary block",
+              onClick: () => {
+                if (S())
+                  try {
+                    const _ = Rn(l.pay || "1", 8, "WAX"),
+                      A = (l.recv || a).trim(),
+                      T = 15e12;
+                    f({
+                      title: "PowerUp CPU / NET",
+                      details: [
+                        { label: "Payer", value: a },
+                        { label: "Receiver", value: A },
+                        { label: "Days", value: "1" },
+                        { label: "Max payment", value: _ },
+                      ],
+                      warning:
+                        "If the quote is higher than max payment the transaction fails and nothing is spent.",
+                      actions: [PC(a, A, T, T, _, 1)],
+                    });
+                  } catch (_) {
+                    r(_.message, "error");
+                  }
+              },
+              children: "Review PowerUp",
+            }),
+`,
+    `            N.jsx(WH_PowerUp, { me: a, open: f, ready: S, toast: r }),
+`,
+  ],
+  // waxdao::powerup: broken since early 2026 (its contract fails with "eosio::powerup
+  // not found"; last successful use March 2026), so the button is gone
+  [
+    `            N.jsx("button", {
+              className: "btn block",
+              style: { marginTop: 8 },
+              onClick: () => {
+                S() &&
+                  f({
+                    title: "waxdao::powerup",
+                    details: [{ label: "Signer", value: a }],
+                    warning:
+                      "This contract action takes no parameters. It will fail if you are not eligible.",
+                    actions: [LC()],
+                  });
+              },
+              children: "Try waxdao powerup",
+            }),
+`,
+    ``,
+  ],
+  // sign-in: SessionKit.login() matches walletPlugin by id (c.id === walletPlugin), but the
+  // original passed the plugin object, so the wallet tapped was ignored and WharfKit asked
+  // again. Pass the id, for Cloud Wallet, Anchor and WebAuth.
+  [
+    `      if (X === "cloud") {
+        const F = ee.walletPlugins?.find((C) =>
+          String(C.id || "")
+            .toLowerCase()
+            .includes("cloud"),
+        );
+        F && (oe.walletPlugin = F);
+      }
+      if (X === "anchor") {
+        const F = ee.walletPlugins?.find((C) =>
+          String(C.id || "")
+            .toLowerCase()
+            .includes("anchor"),
+        );
+        F && (oe.walletPlugin = F);
+      }`,
+    `      const F = ee.walletPlugins?.find((C) =>
+        X === "webauth" ? String(C.id || "") === "webauth" : String(C.id || "").toLowerCase().includes(X),
+      );
+      F && (oe.walletPlugin = F.id);`,
+  ],
 ];

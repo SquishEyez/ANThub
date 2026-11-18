@@ -91,14 +91,30 @@ const WHX = (() => {
   }
   let poolCache = null;
   const pools = () => (poolCache = poolCache || all("simpledex", "pools").catch((e) => ((poolCache = null), Promise.reject(e))));
+  // Metal X REST API (xpr-network-dev-skill: metalx-dex.md). Orders themselves go
+  // on-chain; the API is only read from.
   const METALX = "https://dex.api.mainnet.metalx.com";
-  async function openOrders(me) {
-    const r = await Wf(`${METALX}/dex/v1/orders/open?account=${me}&limit=100`, { method: "GET" }, 15e3);
+  async function mxGet(path) {
+    const r = await Wf(`${METALX}/dex/v1/${path}`, { method: "GET" }, 15e3);
     if (!r.ok) throw new Error(`Metal X API ${r.status}`);
     const j = await r.json();
-    return j.data || j || [];
+    return j.data || [];
   }
-  return { raw, sp, q, all, one, oracle, loan, health, swapOut, pools, openOrders };
+  const openOrders = (me) => mxGet(`orders/open?account=${me}&limit=100`);
+  // Markets open for trading (status 1), with each market's last price from the daily stats.
+  let mxCache = null;
+  const markets = () =>
+    (mxCache =
+      mxCache ||
+      Promise.all([mxGet("markets/all"), mxGet("trades/daily").catch(() => [])])
+        .then(([ms, daily]) => {
+          const last = Object.fromEntries(daily.map((d) => [d.market_id, d]));
+          return ms.map((m) => ({ ...m, last: last[m.market_id]?.close || 0, change: last[m.market_id]?.change_percentage || 0 }));
+        })
+        .catch((e) => ((mxCache = null), Promise.reject(e))));
+  // Amounts from the API are plain numbers; show them at the token's precision, never as 1e-7.
+  const fmtAmt = (n, prec) => Number(n || 0).toLocaleString(void 0, { maximumFractionDigits: prec ?? 8, minimumFractionDigits: 0 });
+  return { raw, sp, q, all, one, oracle, loan, health, swapOut, pools, openOrders, markets, fmtAmt };
 })();
 
 function WH_XprDefi({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
@@ -128,7 +144,7 @@ function WH_XprDefi({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
   const TABS = [
     ["loan", "Lending (LOAN)"],
     ["simpledex", "SimpleDEX"],
-    ["metalx", "Metal X orders"],
+    ["metalx", "Metal X"],
     ["prices", "Prices"],
     ["profile", "Profile & KYC"],
   ];
@@ -140,7 +156,7 @@ function WH_XprDefi({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
         </button>
         <h1 style={{ margin: 0, flex: 1 }}>XPR DeFi</h1>
       </div>
-      <p className="sub">Lend and borrow on LOAN, swap and manage liquidity on SimpleDEX, cancel Metal X orders, see XPR Network's oracle prices and your WebAuth profile. All gas-free.</p>
+      <p className="sub">Lend and borrow on LOAN, swap and manage liquidity on SimpleDEX, trade on Metal X, see XPR Network's oracle prices and your WebAuth profile. All gas-free.</p>
       <div className="tabs" style={{ flexWrap: "wrap" }}>
         {TABS.map(([k, l]) => (
           <button key={k} className={`tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
@@ -343,7 +359,11 @@ function XP_SimpleDex({ me, signedIn, login, ask, tick }) {
   }, [me, tick]);
   const byId = Object.fromEntries((pools || []).map((p) => [String(p.id), p]));
   const sym = (s) => WHX.sp(s);
-  const src = bals.find((b) => `${b.currency}@${b.contract}` === from) || bals[0];
+  // only tokens some live pool trades (hides look-alike tokens from other contracts)
+  const live = (pools || []).filter((p) => !Number(p.paused) && Number(p.reserveA) > 0 && Number(p.reserveB) > 0);
+  const tradable = new Set(live.flatMap((p) => [`${sym(p.tokenASymbol).c}@${p.tokenAContract}`, `${sym(p.tokenBSymbol).c}@${p.tokenBContract}`]));
+  const payable = bals.filter((b) => tradable.has(`${b.currency}@${b.contract}`));
+  const src = payable.find((b) => `${b.currency}@${b.contract}` === from) || payable[0];
   const match = src ? (pools || []).filter((p) => !Number(p.paused) && ((p.tokenAContract === src.contract && sym(p.tokenASymbol).c === src.currency) || (p.tokenBContract === src.contract && sym(p.tokenBSymbol).c === src.currency)) && Number(p.reserveA) > 0 && Number(p.reserveB) > 0) : [];
   const pool = match.find((p) => String(p.id) === pid) || match.sort((x, y) => Number(y.reserveA) - Number(x.reserveA))[0];
   const aIn = pool && src && pool.tokenAContract === src.contract && sym(pool.tokenASymbol).c === src.currency;
@@ -416,14 +436,14 @@ function XP_SimpleDex({ me, signedIn, login, ask, tick }) {
           {pools === null && <div className="faint">Loading pools…</div>}
           <CR_F label="You pay">
             <select className="select" value={src ? `${src.currency}@${src.contract}` : ""} onChange={(ev) => { setFrom(ev.target.value); setPid(""); }}>
-              {bals.map((b) => (
+              {payable.map((b) => (
                 <option key={b.contract + b.currency} value={`${b.currency}@${b.contract}`}>
                   {b.currency} ({NV.fmt(b.amount, 8)}) · {b.contract}
                 </option>
               ))}
             </select>
           </CR_F>
-          {pools && src && match.length === 0 && <div className="faint" style={{ fontSize: 12.5 }}>No SimpleDEX pool trades {src.currency}.</div>}
+          {pools && !src && <div className="faint" style={{ fontSize: 12.5 }}>None of your tokens has a SimpleDEX pool yet.</div>}
           {pool && (
             <>
               <CR_F label="You get">
@@ -478,48 +498,180 @@ function XP_SimpleDex({ me, signedIn, login, ask, tick }) {
 }
 
 /* ------------------------------------------------------------- Metal X */
+// Metal X (dex). An order is one transaction, the way MetalX's own app sends it
+// (metalx-dex.md, and checked against live mainnet orders):
+//   1. transfer the token you pay to `dex` with an EMPTY memo (a deposit),
+//   2. dex::placeorder: sell -> quantity in the base token; buy -> quantity is the
+//      quote token you spend; price always in quote-token units. Market orders are
+//      IOC (fill_type 1) at price 9223372036854775806 (buy) or 1 (sell),
+//   3. dex::process (once) so the matching engine picks it up straight away.
+// Anything unfilled stays on your Metal X balance until cancelled / withdrawn.
+const MX_MARKET_BUY = "9223372036854775806";
+const MX_MARKET_SELL = "1";
+
+function XP_MetalTrade({ me, ask, markets, bals }) {
+  const live = (markets || []).filter((m) => Number(m.status_code) === 1);
+  const [mid, setMid] = De.useState("");
+  const [side, setSide] = De.useState("buy");
+  const [kind, setKind] = De.useState("limit");
+  const [amt, setAmt] = De.useState("");
+  const [price, setPrice] = De.useState("");
+  const m = live.find((x) => String(x.market_id) === mid) || live[0];
+  De.useEffect(() => {
+    m && setPrice(m.last ? String(m.last) : "");
+  }, [m?.market_id]);
+  if (!m) return <div className="faint">Loading markets…</div>;
+  const base = m.bid_token,
+    quote = m.ask_token;
+  const pay = side === "buy" ? quote : base;
+  const have = Number((bals || []).find((b) => b.contract === pay.contract && b.currency === pay.code)?.amount || 0);
+  const a = Number(String(amt).replace(",", "."));
+  const pr = kind === "market" ? Number(m.last) : Number(String(price).replace(",", "."));
+  const fee = (kind === "market" ? m.taker_fee : m.maker_fee) || 0;
+  const gets = !(a > 0 && pr > 0) ? 0 : side === "buy" ? a / pr : a * pr;
+  const getTok = side === "buy" ? base : quote;
+  const err = !amt ? "" : !(a > 0) ? "Enter an amount" : a > have + 1e-12 ? `You have ${WHX.fmtAmt(have, pay.precision)} ${pay.code}` : kind === "limit" && !(pr > 0) ? "Enter a price" : "";
+  const raw = (n, p) => BigInt(Math.round(n * 10 ** p)).toString();
+  const actions = () => [
+    { account: pay.contract, name: "transfer", data: { from: me, to: "dex", quantity: WHX.q(a, pay.precision, pay.code), memo: "" } },
+    {
+      account: "dex",
+      name: "placeorder",
+      data: {
+        market_id: m.market_id,
+        account: me,
+        order_type: 1,
+        order_side: side === "buy" ? 1 : 2,
+        quantity: raw(a, pay.precision),
+        price: kind === "market" ? (side === "buy" ? MX_MARKET_BUY : MX_MARKET_SELL) : raw(pr, quote.precision),
+        bid_symbol: { sym: `${base.precision},${base.code}`, contract: base.contract },
+        ask_symbol: { sym: `${quote.precision},${quote.code}`, contract: quote.contract },
+        trigger_price: 0,
+        fill_type: kind === "market" ? 1 : 0,
+        referrer: "",
+      },
+    },
+    { account: "dex", name: "process", data: { q_size: 20, show_error_msg: false } },
+  ];
+  return (
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Trade</h3>
+      <CR_F label="Market">
+        <select className="select" value={String(m.market_id)} onChange={(ev) => (setMid(ev.target.value), setAmt(""))}>
+          {live.map((x) => (
+            <option key={x.market_id} value={String(x.market_id)}>
+              {x.bid_token.code}/{x.ask_token.code}
+              {x.last ? ` · ${WHX.fmtAmt(x.last, x.ask_token.precision)}` : ""}
+            </option>
+          ))}
+        </select>
+      </CR_F>
+      <div className="tabs">
+        {["buy", "sell"].map((x) => (
+          <button key={x} className={`tab ${side === x ? "on" : ""}`} onClick={() => (setSide(x), setAmt(""))}>
+            {x === "buy" ? `Buy ${base.code}` : `Sell ${base.code}`}
+          </button>
+        ))}
+      </div>
+      <div className="tabs">
+        {["limit", "market"].map((x) => (
+          <button key={x} className={`tab ${kind === x ? "on" : ""}`} onClick={() => setKind(x)}>
+            {x === "limit" ? "Limit" : "Market"}
+          </button>
+        ))}
+      </div>
+      {kind === "limit" ? (
+        <CR_F label={`Price (${quote.code} per ${base.code})`}>
+          <input className="input" inputMode="decimal" value={price} onChange={(ev) => setPrice(ev.target.value)} />
+        </CR_F>
+      ) : (
+        <div className="faint" style={{ fontSize: 12.5, margin: "0 0 8px" }}>
+          Fills now at the best prices in the order book (last price {WHX.fmtAmt(m.last, quote.precision)} {quote.code}). Any part that can't fill is cancelled and stays on your Metal X balance.
+        </div>
+      )}
+      <WH_AmountInput label={side === "buy" ? `Spend (${quote.code})` : `Sell (${base.code})`} value={amt} max={String(have)} symbol={pay.code} onChange={setAmt} />
+      {err && <div className="wh-field-msg err">{err}</div>}
+      <div className="kv">
+        <span className="muted">You get {kind === "market" ? "about" : ""}</span>
+        <span>
+          {gets ? WHX.fmtAmt(gets * (1 - fee / 100), getTok.precision) : "—"} {getTok.code}
+        </span>
+      </div>
+      <div className="kv">
+        <span className="muted">Fee</span>
+        <span>{fee}% ({kind === "market" ? "taker" : "maker"})</span>
+      </div>
+      <button
+        className="btn primary block"
+        disabled={!(a > 0) || !!err}
+        onClick={() =>
+          ask(
+            `${side === "buy" ? "Buy" : "Sell"} ${base.code} on Metal X`,
+            actions(),
+            [
+              { label: "Market", value: `${base.code}/${quote.code}` },
+              { label: "Order", value: `${kind === "market" ? "Market" : "Limit"} ${side}` },
+              { label: side === "buy" ? "Spend" : "Sell", value: WHX.q(a, pay.precision, pay.code) },
+              ...(kind === "limit" ? [{ label: "Price", value: `${pr} ${quote.code}` }] : []),
+              { label: "You get", value: `${kind === "market" ? "≈ " : ""}${WHX.fmtAmt(gets * (1 - fee / 100), getTok.precision)} ${getTok.code}` },
+            ],
+            kind === "limit" ? "The order waits in the book until the price is reached. Cancel it any time below; the unfilled part returns to your Metal X balance." : "Market orders fill at the best available prices, which can differ from the last price.",
+          )
+        }
+      >
+        Review order
+      </button>
+    </div>
+  );
+}
+
 function XP_MetalX({ me, signedIn, login, ask, tick }) {
   const [orders, setOrders] = De.useState(null);
   const [bal, setBal] = De.useState(null);
+  const [wallet, setWallet] = De.useState([]);
   const [err, setErr] = De.useState("");
-  const [mk, setMk] = De.useState({});
+  const [markets, setMarkets] = De.useState(null);
   De.useEffect(() => {
-    // market id -> "BID/ASK" names from the dex contract's markets table
-    qr({ code: "dex", scope: "dex", table: "markets", limit: 200 })
-      .then((x) => setMk(Object.fromEntries((x.rows || []).map((m) => [String(m.market_id), `${WHX.sp(m.bid_token.sym).c}/${String(m.ask_token.quantity || m.ask_token.sym || "").split(/[ ,]/).pop()}`]))))
-      .catch(() => {});
+    WHX.markets()
+      .then(setMarkets)
+      .catch((x) => (setErr(`Couldn't reach the Metal X API (${x?.message || x}).`), setMarkets([])));
   }, []);
   De.useEffect(() => {
     if (!me) return;
-    setErr("");
     WHX.openOrders(me)
       .then((x) => setOrders(Array.isArray(x) ? x : []))
       .catch((x) => (setErr(`Couldn't reach the Metal X API (${x?.message || x}). Your exchange balance below still comes from the chain.`), setOrders([])));
     qr({ code: "dex", scope: "dex", table: "balances", lower_bound: me, upper_bound: me, limit: 1 }).then((x) => setBal((x.rows || [])[0]?.balances || [])).catch(() => setBal([]));
+    H9(me).then((b) => setWallet(b || [])).catch(() => setWallet([]));
   }, [me, tick]);
-  if (!signedIn) return <BR_SignIn login={login} what="see and cancel your Metal X orders" />;
+  if (!signedIn) return <BR_SignIn login={login} what="trade on Metal X and manage your orders" />;
+  const mk = Object.fromEntries((markets || []).map((m) => [String(m.market_id), m]));
   const nb = (bal || []).filter((b) => NV.num(b.quantity) > 0);
   return (
     <>
-      <div className="warn">Sending tokens to Metal X's <span className="mono">dex</span> contract with any memo loses them: deposits must have an empty memo. Antelope Hub blocks such transfers on XPR Network.</div>
       {err && <div className="warn">{err}</div>}
+      <XP_MetalTrade me={me} ask={ask} markets={markets} bals={wallet} />
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Open orders</h3>
         {orders === null && <div className="faint">Loading…</div>}
         {orders && orders.length === 0 && !err && <div className="faint" style={{ fontSize: 13 }}>No open orders.</div>}
-        {(orders || []).map((o) => (
-          <div className="kv" key={o.order_id} style={{ alignItems: "center" }}>
-            <span style={{ fontSize: 13 }}>
-              {o.order_side === 1 || o.order_side === "buy" ? "Buy" : "Sell"} {o.quantity_curr ?? o.quantity_init ?? o.quantity} · {mk[String(o.market_id)] || o.market_symbol || `market ${o.market_id}`} @ {o.price}
-              {o.created_at ? <span className="faint"> · since {new Date(o.created_at).toLocaleDateString()}</span> : null}
-            </span>
-            <button className="btn sm" onClick={() => ask("Cancel order", [{ account: "dex", name: "cancelorder", data: { account: me, order_id: String(o.order_id) } }], [{ label: "Order", value: `#${o.order_id}` }], "The unfilled part returns to your Metal X balance. Withdraw it below.")}>
-              Cancel
-            </button>
-          </div>
-        ))}
+        {(orders || []).map((o) => {
+          const m = mk[String(o.market_id)];
+          const buy = o.order_side === 1 || o.order_side === "buy";
+          return (
+            <div className="kv" key={o.order_id} style={{ alignItems: "center" }}>
+              <span style={{ fontSize: 13 }}>
+                {buy ? "Buy" : "Sell"} {WHX.fmtAmt(o.quantity_curr ?? o.quantity_init, m ? (buy ? m.ask_token.precision : m.bid_token.precision) : 8)} {m ? (buy ? m.ask_token.code : m.bid_token.code) : ""} · {m ? `${m.bid_token.code}/${m.ask_token.code}` : `market ${o.market_id}`} @ {WHX.fmtAmt(o.price, m?.ask_token.precision)}
+                {o.created_at ? <span className="faint"> · {new Date(o.created_at).toLocaleDateString()}</span> : null}
+              </span>
+              <button className="btn sm" onClick={() => ask("Cancel order", [{ account: "dex", name: "cancelorder", data: { account: me, order_id: String(o.order_id) } }], [{ label: "Order", value: `#${o.order_id}` }], "The unfilled part returns to your Metal X balance. Withdraw it below.")}>
+                Cancel
+              </button>
+            </div>
+          );
+        })}
         {orders && orders.length > 1 && (
-          <button className="btn block" style={{ marginTop: 8 }} onClick={() => ask(`Cancel ${orders.length} orders`, orders.slice(0, 20).map((o) => ({ account: "dex", name: "cancelorder", data: { account: me, order_id: String(o.order_id) } })), [{ label: "Orders", value: orders.slice(0, 20).map((o) => "#" + o.order_id).join(", ") }])}>
+          <button className="btn block" style={{ marginTop: 8 }} onClick={() => ask(`Cancel ${Math.min(orders.length, 20)} orders`, orders.slice(0, 20).map((o) => ({ account: "dex", name: "cancelorder", data: { account: me, order_id: String(o.order_id) } })), [{ label: "Orders", value: orders.slice(0, 20).map((o) => "#" + o.order_id).join(", ") }])}>
             Cancel all{orders.length > 20 ? " (first 20)" : ""}
           </button>
         )}
@@ -533,6 +685,7 @@ function XP_MetalX({ me, signedIn, login, ask, tick }) {
           </button>
         )}
       </div>
+      <div className="faint" style={{ fontSize: 12 }}>Deposits to Metal X's <span className="mono">dex</span> contract must have an empty memo, or the tokens are lost. The app always sends an empty memo and blocks any other.</div>
     </>
   );
 }
@@ -600,7 +753,11 @@ function XP_Profile({ me, signedIn, login }) {
               <b style={{ fontSize: 17 }}>{u.name || u.acc}</b>
               <div className="faint mono" style={{ fontSize: 12 }}>@{u.acc}</div>
             </div>
-            {Number(u.verified) ? <span className="pill good">Verified</span> : <span className="pill">Not verified</span>}
+            {/* `verified` is an opt-in checkmark set by a verifier, independent of KYC */}
+            <span style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
+              {Number(u.verified) ? <span className="pill good">✓ Verified</span> : null}
+              {(u.kyc || []).length > 0 ? <span className="pill good">KYC</span> : <span className="pill">No KYC</span>}
+            </span>
           </div>
           {(u.kyc || []).length > 0 && (
             <div style={{ marginTop: 10 }}>
@@ -616,7 +773,7 @@ function XP_Profile({ me, signedIn, login }) {
               ))}
             </div>
           )}
-          {u.date ? <div className="faint" style={{ fontSize: 12, marginTop: 8 }}>Account created {new Date(Number(u.date) * 1000).toLocaleDateString()}</div> : null}
+          {u.date ? <div className="faint" style={{ fontSize: 12, marginTop: 8 }}>WebAuth profile registered {new Date(Number(u.date) * 1000).toLocaleDateString()}</div> : null}
           <p className="faint" style={{ fontSize: 12 }}>Your name, avatar and identity checks are managed in the WebAuth wallet. The details of a KYC check stay with its provider; only the result is on-chain.</p>
           <a className="btn block" href="https://webauth.com/" target="_blank" rel="noopener noreferrer" style={{ textAlign: "center", textDecoration: "none" }}>
             Edit in WebAuth

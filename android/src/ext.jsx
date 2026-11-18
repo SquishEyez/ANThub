@@ -625,14 +625,15 @@ function WH_ResourceHint({ cpu, net, ramUsed, ramMax, mine, onBuyRam }) {
           <div>
             {items.map(([k, v]) => `${k} ${v.toFixed(0)}%`).join(" · ")} used — transactions may fail.{" "}
             {mine && WHCHAIN.powerup && `PowerUp rents resources for 24h for a small amount of ${WHCHAIN.sym}.`}
+            {mine && WHCHAIN.rexRent && `Rent CPU for 30 days for a small amount of ${WHCHAIN.sym}.`}
           </div>
         )}
         {r >= 90 && <div>RAM is {r.toFixed(0)}% full — receiving new NFTs or tokens may need more RAM.</div>}
         {mine && (
           <div className="wh-chips" style={{ marginTop: 8 }}>
-            {items.length > 0 && WHCHAIN.powerup && (
+            {items.length > 0 && (WHCHAIN.powerup || WHCHAIN.rexRent) && (
               <button type="button" className="wh-chip accent" onClick={() => WH.nav({ tab: "more", tool: "tools", sub: "power" })}>
-                PowerUp now
+                {WHCHAIN.powerup ? "PowerUp now" : "Rent CPU"}
               </button>
             )}
             {r >= 90 && (

@@ -12,7 +12,7 @@ const WHNA = (() => {
     wax: [{ name: "My Cloud Wallet", url: "https://www.mycloudwallet.com/", text: "Free. Sign up with email, Google, Apple or similar and you get a WAX account ending in .wam, with free resources to start. You can sign in to Antelope Hub with it straight away." }],
     eos: [{ name: "Ask someone with an EOS account", text: "EOS has no free sign-up run by the network. Choose \"Someone else creates it\" below: the app makes your keys and a message to send to a friend, a community member or a paid account service." }],
     telos: [{ name: "Telos Wallet", url: "https://wallet.telos.net/", text: "The official Telos wallet can create a Telos account for you at no cost. Then import the key into Anchor to use it here." }],
-    xpr: [{ name: "WebAuth wallet", url: "https://webauth.com/", text: "Free. Install WebAuth (iOS, Android or web), pick a name and you're done, with free resources. To use the account here, back up its private key in WebAuth (Settings → Backup private key), import it into Anchor, and sign in with Anchor." }],
+    xpr: [{ name: "WebAuth wallet", url: "https://webauth.com/", text: "Free. Install WebAuth (iOS, Android or web), pick a name and you're done, with free resources. Then sign in here with WebAuth." }],
     libre: [{ name: "Bitcoin Libre wallet", url: "https://www.bitcoinlibre.io/", text: "Free. The Bitcoin Libre app creates your Libre account and its Bitcoin deposit address. Libre accounts are made through it rather than from another account." }],
     jungle4: [{ name: "Jungle 4 faucet", url: "https://monitor.jungletestnet.io/", text: "Free test accounts: choose \"Create Account\", enter a 12-character name and the public key made below, then use \"Faucet\" for free test tokens." }],
   }[K] || [];

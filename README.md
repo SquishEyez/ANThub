@@ -28,7 +28,7 @@
 - **NFTs**: view, send, buy and sell, plus a Creator studio to mint your own
 - **Bridges and cross-chain**: move tokens between Antelope chains and Ethereum, BNB Chain, Polygon and more
 - **Telos studio**: polls, community voting tokens, Telos Works funding
-- **XPR DeFi**: LOAN lending, SimpleDEX swaps, Metal X orders
+- **XPR DeFi**: LOAN lending, SimpleDEX swaps, Metal X trading
 - **Rescue & recover**: finds tokens, NFTs, rewards and refunds stuck in contracts, and gets them back
 - **Contract console**: use any smart contract directly, even if its website has gone
 
@@ -49,7 +49,7 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 ## Quick start
 
 1. Open the app and pick your network with the chip at the top.
-2. Tap **Sign in** and choose **Anchor** (any network) or **My Cloud Wallet** (WAX).
+2. Tap **Sign in** and choose **Anchor** (any network), **My Cloud Wallet** (WAX) or **WebAuth** (XPR Network).
 3. No account yet? Go to **More → New account**.
 4. Before anything is sent, you see a summary, and your wallet asks you to approve.
 
@@ -62,7 +62,7 @@ No. Your keys stay in your wallet, and the app never handles them. You approve e
 No. On Android, Antelope Hub installs over WAX Hub as an update. It's the same app with the same signing key, so your settings carry over.
 
 **Which wallet should I use?**
-[Anchor](https://www.greymass.com/anchor) works on every network. On WAX you can also use [My Cloud Wallet](https://www.mycloudwallet.com/). For an XPR Network account made in WebAuth, back up its key in WebAuth (Settings → Backup private key) and import it into Anchor.
+[Anchor](https://www.greymass.com/anchor) works on every network. On WAX you can also use [My Cloud Wallet](https://www.mycloudwallet.com/). On XPR Network you can also sign in with [WebAuth](https://webauth.com/).
 
 **The AppImage won't start on Ubuntu 24.04.**
 Use the `.deb` instead. Newer Ubuntu blocks the sandbox AppImages need. On Ubuntu 22.04 you may need `sudo apt install libfuse2`.

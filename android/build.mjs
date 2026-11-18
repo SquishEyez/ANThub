@@ -93,9 +93,23 @@ const ext = await esbuild.transform(["qrcode.jsx", "alcorcheck.js", "ext.jsx", "
   jsxFragment: "De.Fragment",
   target: "es2020",
 });
+// XPR Network's official WebAuth wallet plugin for WharfKit (@proton/wharfkit-plugin-webauth,
+// pinned in package.json), bundled as WHWebAuth. It carries its own copy of the WharfKit
+// libraries; WharfKit's isInstanceOf checks class names, so both copies work together.
+const webauth = await esbuild.build({
+  stdin: { contents: 'export { WalletPluginWebAuth } from "@proton/wharfkit-plugin-webauth";', resolveDir: here },
+  bundle: true,
+  format: "iife",
+  globalName: "WHWebAuth",
+  platform: "browser",
+  target: "es2020",
+  write: false,
+  legalComments: "none",
+  define: { "process.env.NODE_ENV": '"production"', global: "globalThis" },
+});
 const anchor = "function Kz(t) {";
 const at = once(js, anchor, anchor);
-js = js.slice(0, at) + ext.code + "\n" + js.slice(at);
+js = js.slice(0, at) + webauth.outputFiles[0].text + "\n" + ext.code + "\n" + js.slice(at);
 
 // 4. minify (syntax check included)
 const min = await esbuild.transform(js, { loader: "js", format: "esm", minify: true, target: "es2020" });

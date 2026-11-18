@@ -1,16 +1,17 @@
 {
   "name": "antelope-hub-android",
   "private": true,
-  "version": "1.1.2",
-  "androidVersionCode": 15,
+  "version": "1.2.0",
+  "androidVersionCode": 16,
   "type": "module",
   "scripts": {
     "build": "node build.mjs base/wax-hub-2.0.apk",
     "build:web": "node build.mjs base/wax-hub-2.0.apk --web-only"
   },
   "devDependencies": {
+    "@babel/parser": "7.26.3",
+    "@proton/wharfkit-plugin-webauth": "1.1.0",
     "esbuild": "0.24.0",
-    "prettier": "3.3.3",
-    "@babel/parser": "7.26.3"
+    "prettier": "3.3.3"
   }
 }

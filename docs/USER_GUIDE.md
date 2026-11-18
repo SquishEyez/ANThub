@@ -51,6 +51,7 @@ Linux notes:
 |---|---|---|
 | **Anchor** (desktop or mobile) | All: WAX, EOS, Telos, XPR Network, Libre, Jungle 4 | Import your account's private key into Anchor once; Antelope Hub then asks Anchor to sign. |
 | **My Cloud Wallet** | WAX | Sign in with email, Google, Apple and others. Accounts end in `.wam`. |
+| **WebAuth** | XPR Network | XPR Network's own wallet app. Approve with your fingerprint or face; on a computer, scan the QR code with WebAuth on your phone. |
 
 **First pick your network.** Tap the network chip at the top of the screen (WAX, EOS, Telos, XPR, Libre, Jungle 4). The app reloads for that chain, and your choice is remembered.
 
@@ -63,7 +64,7 @@ Linux notes:
 
 You can also create an account from one you already have. The app makes the keys on your device and never stores them; write the private key down before you continue.
 
-> **XPR Network accounts made in WebAuth:** WebAuth isn't a sign-in option in Antelope Hub. In WebAuth go to **Settings → Backup private key**, import that key into Anchor, then sign in with Anchor.
+> **XPR Network accounts made in WebAuth:** choose **WebAuth** when you sign in (it appears on XPR Network). On your phone it opens the WebAuth app; on a computer, scan the code with WebAuth or use the browser option. Anchor works too, if you import your WebAuth key into it.
 
 ## 4. Find your way around
 
@@ -83,7 +84,7 @@ Balances with USD values, plus send and receive. You'll also find staking (CPU/N
 |---|---|
 | **‹Network› essentials** | That network's own features: REX, RAM gifting and name auctions (EOS/Jungle 4); voting rewards (WAX); Telos Decide votes and REX (Telos); XPR staking and Metal X (XPR); Libre staking and DAO |
 | **Telos studio** (Telos) | Polls and ballots, community voting tokens, Telos Works funding proposals, fee deposits |
-| **XPR DeFi** (XPR) | LOAN lending and borrowing, SimpleDEX, Metal X orders, oracle prices, WebAuth profiles and KYC |
+| **XPR DeFi** (XPR) | LOAN lending and borrowing, SimpleDEX, Metal X trading (limit and market orders), oracle prices, WebAuth profiles and KYC |
 | **Cross-chain** (WAX, EOS, Telos, XPR) | Your own deposit address on Ethereum, BNB Chain, Polygon, TON, NEAR and Sui; swaps to another token on another chain; transfer activity |
 | **Bridges** | Every live and old bridge on the network, with its status and actions |
 | **New account** | Guided account creation |
