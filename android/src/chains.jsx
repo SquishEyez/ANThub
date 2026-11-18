@@ -98,6 +98,114 @@ function WH_ChainSheet({ open, onClose, signedIn }) {
   );
 }
 
+/* Resources paid in A (Vaulta). An account that moved everything to A (stake
+   included) has no CPU/NET left, so nothing it signs goes through, not even an
+   NFT transfer. core.vaulta::powerup and ::buyrambytes take A, and a PowerUp
+   at the start of a transaction pays for that same transaction (checked by dry
+   run on mainnet with A-only accounts that had 0 CPU and 0 NET). So when the
+   account is short, yo() puts a small PowerUp (and RAM if needed) in front of
+   whatever is being signed. Sized from eosio powup.state; costs a fraction of
+   a cent. Turn it off on the Vaulta card. */
+const WHFUEL = (() => {
+  const KEY = "waxhub.fuelA";
+  const TARGET_US = 5000; // ~ a day of normal use
+  const TARGET_NET = 10000;
+  const LOW_US = 1500;
+  const LOW_NET = 1000;
+  const LOW_RAM = 800; // a PowerUp order row (~130 bytes) plus a new EOS balance row
+  const RAM_BYTES = 1024;
+  const num = (x) => Number(String(x ?? 0).split(" ")[0]) || 0;
+  const on = () => {
+    try {
+      return localStorage.getItem(KEY) !== "0";
+    } catch {
+      return true;
+    }
+  };
+  const set = (v) => {
+    try {
+      localStorage.setItem(KEY, v ? "1" : "0");
+    } catch {}
+  };
+  const usable = () => !!WHCHAIN.vaulta?.converts;
+  // powerup.cpp: calc_powerup_fee (in the core token)
+  function fee(r, inc) {
+    if (!(inc > 0)) return 0;
+    const w = Number(r.weight), ex = Number(r.exponent), mn = num(r.min_price), mx = num(r.max_price);
+    const price = (u) => mn + (mx - mn) * Math.pow(u / w, ex - 1);
+    const integral = (a, b) => mn * (b / w) - mn * (a / w) + ((mx - mn) / ex) * (Math.pow(b / w, ex) - Math.pow(a / w, ex));
+    let start = Number(r.utilization);
+    const end = start + inc, adj = Number(r.adjusted_utilization);
+    let f = 0;
+    if (start < adj) {
+      f += (price(adj) * Math.min(inc, adj - start)) / w;
+      start = adj;
+    }
+    if (start < end) f += integral(start, end);
+    return f;
+  }
+  const bal = (me, code, sym) =>
+    qr({ code, scope: me, table: "accounts", limit: 20 }).then((x) => num((x.rows || []).find((b) => String(b.balance).endsWith(" " + sym))?.balance)).catch(() => 0);
+  // What the account is short of, and the actions that fix it.
+  async function quote(me, force = false) {
+    const V = WHCHAIN.vaulta;
+    const [acct, st, reserv, ram, aBal] = await Promise.all([
+      FC(me),
+      qr({ code: "eosio", scope: "", table: "powup.state", limit: 1 }).then((x) => (x.rows || [])[0]),
+      FC("eosio.reserv"),
+      qr({ code: "eosio", scope: "eosio", table: "rammarket", limit: 1 }).then((x) => (x.rows || [])[0]),
+      bal(me, V.contract, V.sym),
+    ]);
+    const eBal = num(acct.core_liquid_balance);
+    const cpuLeft = Number(acct.cpu_limit?.available || 0), netLeft = Number(acct.net_limit?.available || 0);
+    const ramLeft = Number(acct.ram_quota || 0) - Number(acct.ram_usage || 0);
+    const short = { cpu: cpuLeft < LOW_US, net: netLeft < LOW_NET, ram: Number(acct.ram_quota) >= 0 && ramLeft < LOW_RAM };
+    const need = force || short.cpu || short.net;
+    const out = { me, cpuLeft, netLeft, ramLeft, aBal, eBal, short, acts: [], cost: 0, ok: true };
+    if (!need && !short.ram) return out;
+    let cost = 0;
+    const acts = [];
+    if (short.ram || (need && ramLeft < LOW_RAM)) {
+      const base = num(ram.base.balance), quoteBal = num(ram.quote.balance);
+      cost += ((quoteBal * RAM_BYTES) / (base - RAM_BYTES)) * 1.005 * 1.1;
+      acts.push({ account: V.contract, name: "buyrambytes", data: { payer: me, receiver: me, bytes: RAM_BYTES } });
+    }
+    if (need) {
+      const cpuPerW = Number(reserv.cpu_limit.max) / Number(reserv.cpu_weight);
+      const netPerW = Number(reserv.net_limit.max) / Number(reserv.net_weight);
+      const cpuAmt = TARGET_US / cpuPerW, netAmt = TARGET_NET / netPerW;
+      const cpu_frac = Math.ceil((cpuAmt * 1e15) / Number(st.cpu.weight));
+      const net_frac = Math.ceil((netAmt * 1e15) / Number(st.net.weight));
+      const f = Math.max(fee(st.cpu, cpuAmt) + fee(st.net, netAmt), num(st.min_powerup_fee));
+      const max = Math.ceil((f * 1.5 + 0.0005) * 1e4) / 1e4;
+      cost += max;
+      acts.push({ account: V.contract, name: "powerup", data: { payer: me, receiver: me, days: 1, net_frac: String(net_frac), cpu_frac: String(cpu_frac), max_payment: `${max.toFixed(V.prec)} ${V.sym}` } });
+    }
+    cost = Math.ceil(cost * 1e4) / 1e4;
+    // pay in A; top A up from EOS (1:1 through core.vaulta) if it is short
+    const gap = Math.ceil((cost - aBal) * 1e4) / 1e4;
+    if (gap > 0) {
+      if (eBal >= gap) acts.unshift({ account: "eosio.token", name: "transfer", data: { from: me, to: V.contract, quantity: `${gap.toFixed(WHCHAIN.prec)} ${WHCHAIN.sym}`, memo: "" } });
+      else out.ok = false;
+    }
+    return { ...out, acts, cost };
+  }
+  // Extra actions for yo(): [] when nothing is needed or it can't be paid.
+  async function plan(me, actions) {
+    if (!usable() || !on()) return [];
+    if (actions.some((x) => x.name === "powerup" || x.name === "buyrambytes" || x.name === "buyram")) return [];
+    const q = await quote(me);
+    if (!q.acts.length) return [];
+    if (!q.ok) {
+      WH.toast(`Your account is out of CPU/NET and has under ${q.cost} A to rent more. Add a little A or EOS, or let Anchor cover it (Greymass Fuel).`, "error");
+      return [];
+    }
+    WH.toast(`Out of ${[q.short.cpu && "CPU", q.short.net && "NET", q.short.ram && "RAM"].filter(Boolean).join(" / ")}: adding resources paid in A (up to ${q.cost} A) to this transaction.`, "info");
+    return q.acts;
+  }
+  return { on, set, usable, quote, plan, fee };
+})();
+
 /* Vaulta ($A) on the EOS network: A and EOS convert 1:1 through core.vaulta.
    Transferring EOS (eosio.token) or A (core.vaulta) to core.vaulta converts it
    and pays the sender back in the other token. Checked by dry run on mainnet;
@@ -109,6 +217,30 @@ function WH_Vaulta({ balances, session, account, viewing, toast, onDone }) {
   const [amt, setAmt] = De.useState("");
   const [busy, setBusy] = De.useState(false);
   const [usd, setUsd] = De.useState(0);
+  const [res, setRes] = De.useState(null);
+  const [auto, setAuto] = De.useState(WHFUEL.on());
+  const [rtick, setRtick] = De.useState(0);
+  De.useEffect(() => {
+    let live = true;
+    if (account && WHFUEL.usable() && viewing === account) WHFUEL.quote(account).then((q) => live && setRes(q)).catch(() => live && setRes(null));
+    return () => {
+      live = false;
+    };
+  }, [account, viewing, rtick]);
+  async function topUp() {
+    setBusy(true);
+    try {
+      const q = await WHFUEL.quote(account, true);
+      if (!q.ok) throw new Error(`You need about ${q.cost} A (or EOS) to rent resources.`);
+      const r = await yo(session, q.acts);
+      toast(pn(r) ? `Resources added for 24h\n${pn(r)}` : "Resources added for 24h", "success");
+      setTimeout(() => setRtick((x) => x + 1), 1500);
+    } catch (ex) {
+      toast(ex?.message || String(ex), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
   De.useEffect(() => {
     let live = true;
     if (V && V.delphi) k2(V.delphi).then((m) => live && setUsd(m ? m / 10 ** V.delphiPrec : 0)).catch(() => {});
@@ -169,6 +301,30 @@ function WH_Vaulta({ balances, session, account, viewing, toast, onDone }) {
         <button type="button" className="btn primary block" style={{ marginTop: 12 }} onClick={() => setOpen(true)}>
           Convert {WHCHAIN.sym} ⇄ A
         </button>
+      )}
+      {mine && res && WHFUEL.usable() && (
+        <div className="wh-fuel" style={{ marginTop: 14 }}>
+          <div className="row">
+            <b style={{ fontSize: 13.5 }}>Network resources</b>
+            <span className={`pill ${res.short.cpu || res.short.net || res.short.ram ? "" : "good"}`}>
+              {res.short.cpu || res.short.net || res.short.ram ? `Low ${[res.short.cpu && "CPU", res.short.net && "NET", res.short.ram && "RAM"].filter(Boolean).join(" / ")}` : "OK"}
+            </span>
+          </div>
+          <div className="faint" style={{ fontSize: 12, margin: "4px 0 8px" }}>
+            CPU {(res.cpuLeft / 1000).toFixed(2)} ms · NET {(res.netLeft / 1024).toFixed(1)} KB · RAM {(res.ramLeft / 1024).toFixed(1)} KB free
+          </div>
+          <p className="muted" style={{ fontSize: 12.5, margin: "0 0 8px" }}>
+            Moved everything to A, staked {WHCHAIN.sym} included? You can still send NFTs and tokens: A pays for CPU, NET and RAM through core.vaulta, in the same transaction.
+          </p>
+          <label className="row" style={{ justifyContent: "flex-start", gap: 8, fontSize: 13 }}>
+            <input type="checkbox" className="check" checked={auto} onChange={(ev) => { WHFUEL.set(ev.target.checked); setAuto(ev.target.checked); }} />
+            <span>Pay for resources with A when I run out</span>
+          </label>
+          <div className="faint" style={{ fontSize: 11.5, margin: "4px 0 8px" }}>Adds a 24-hour PowerUp (about 5 ms CPU, 10 KB NET), and 1 KB of RAM if needed, to the transaction you sign. Usually well under 0.01 A; your wallet shows the exact actions.</div>
+          <button type="button" className="btn block" disabled={busy} onClick={topUp}>
+            {busy ? <div className="spinner" /> : "Rent CPU/NET for 24h with A now"}
+          </button>
+        </div>
       )}
       <WH_Sheet open={open} title={`Convert ${from} to ${to}`} onClose={() => !busy && setOpen(false)}>
         <div className="tabs">

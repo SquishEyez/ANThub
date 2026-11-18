@@ -106,6 +106,8 @@ The system scanners (unstake refunds, stake to others) run where staking exists.
 
 On Jungle 4, `core.vaulta` doesn't convert EOS to A, so REX there needs test A tokens.
 
+**Resources paid in A.** `core.vaulta::powerup(payer, receiver, days, net_frac, cpu_frac, max_payment A)` and `core.vaulta::buyrambytes` take A. A PowerUp at the start of a transaction pays for that same transaction, so an account with 0 CPU and 0 NET and only A can still sign. Checked by dry run on mainnet: an `atomicassets::transfer` from three such accounts passed with `core.vaulta::powerup` in front, and failed without it (`net usage is too high: 104 > 0`). `max_payment` must be covered by the A balance, so it is sized from `eosio` `powup.state` (calc_powerup_fee) at 1.5× the quote. A PowerUp can also need about 130 bytes of RAM for its order row, plus a row for the EOS it converts, so 1 KB of RAM is bought in A when less than 800 bytes are free. AtomicAssets transfers need no RAM from the sender (the asset's `ram_payer` pays).
+
 ## Bridges
 
 Live status is read from each contract's latest on-chain action (Hyperion). These actions were checked against recent mainnet transactions:
