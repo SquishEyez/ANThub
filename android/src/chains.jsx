@@ -114,6 +114,7 @@ const WHFUEL = (() => {
   const LOW_NET = 1000;
   const LOW_RAM = 800; // a PowerUp order row (~130 bytes) plus a new EOS balance row
   const RAM_BYTES = 1024;
+  const AUTO_MAX_A = 0.5; // never add more than this without the user asking
   const num = (x) => Number(String(x ?? 0).split(" ")[0]) || 0;
   const on = () => {
     try {
@@ -146,8 +147,28 @@ const WHFUEL = (() => {
   }
   const bal = (me, code, sym) =>
     qr({ code, scope: me, table: "accounts", limit: 20 }).then((x) => num((x.rows || []).find((b) => String(b.balance).endsWith(" " + sym))?.balance)).catch(() => 0);
-  // What the account is short of, and the actions that fix it.
-  async function quote(me, force = false) {
+  // How much A and EOS a transaction moves out of the account (tokens it sends
+  // away, and EOS it converts into A), so the top-up never takes funds the
+  // transaction itself needs.
+  function spends(me, actions) {
+    const V = WHCHAIN.vaulta;
+    const s = { a: 0, e: 0, aIn: 0 };
+    for (const x of actions || []) {
+      // REX deposits move A into the REX fund
+      if (x.account === V.contract && x.name === "deposit" && x.data?.owner === me) s.a += num(x.data.amount);
+      if (x.name !== "transfer" || x.data?.from !== me) continue;
+      const n = num(x.data.quantity);
+      if (x.account === V.contract && String(x.data.quantity).endsWith(" " + V.sym)) s.a += n;
+      if (x.account === "eosio.token" && String(x.data.quantity).endsWith(" " + WHCHAIN.sym)) {
+        s.e += n;
+        if (x.data.to === V.contract) s.aIn += n;
+      }
+    }
+    return s;
+  }
+  // What the account is short of, and the actions that fix it. RAM is only
+  // bought together with a PowerUp, which is what needs it.
+  async function quote(me, force = false, spend = { a: 0, e: 0, aIn: 0 }) {
     const V = WHCHAIN.vaulta;
     const [acct, st, reserv, ram, aBal] = await Promise.all([
       FC(me),
@@ -162,30 +183,32 @@ const WHFUEL = (() => {
     const short = { cpu: cpuLeft < LOW_US, net: netLeft < LOW_NET, ram: Number(acct.ram_quota) >= 0 && ramLeft < LOW_RAM };
     const need = force || short.cpu || short.net;
     const out = { me, cpuLeft, netLeft, ramLeft, aBal, eBal, short, acts: [], cost: 0, ok: true };
-    if (!need && !short.ram) return out;
+    if (!need) return out;
     let cost = 0;
     const acts = [];
-    if (short.ram || (need && ramLeft < LOW_RAM)) {
+    if (short.ram) {
       const base = num(ram.base.balance), quoteBal = num(ram.quote.balance);
       cost += ((quoteBal * RAM_BYTES) / (base - RAM_BYTES)) * 1.005 * 1.1;
       acts.push({ account: V.contract, name: "buyrambytes", data: { payer: me, receiver: me, bytes: RAM_BYTES } });
     }
-    if (need) {
-      const cpuPerW = Number(reserv.cpu_limit.max) / Number(reserv.cpu_weight);
-      const netPerW = Number(reserv.net_limit.max) / Number(reserv.net_weight);
-      const cpuAmt = TARGET_US / cpuPerW, netAmt = TARGET_NET / netPerW;
-      const cpu_frac = Math.ceil((cpuAmt * 1e15) / Number(st.cpu.weight));
-      const net_frac = Math.ceil((netAmt * 1e15) / Number(st.net.weight));
-      const f = Math.max(fee(st.cpu, cpuAmt) + fee(st.net, netAmt), num(st.min_powerup_fee));
-      const max = Math.ceil((f * 1.5 + 0.0005) * 1e4) / 1e4;
-      cost += max;
-      acts.push({ account: V.contract, name: "powerup", data: { payer: me, receiver: me, days: 1, net_frac: String(net_frac), cpu_frac: String(cpu_frac), max_payment: `${max.toFixed(V.prec)} ${V.sym}` } });
-    }
+    // PowerUp sized for TARGET_US / TARGET_NET, priced like powerup.cpp
+    const cpuPerW = Number(reserv.cpu_limit.max) / Number(reserv.cpu_weight);
+    const netPerW = Number(reserv.net_limit.max) / Number(reserv.net_weight);
+    const cpuAmt = TARGET_US / cpuPerW, netAmt = TARGET_NET / netPerW;
+    const cpu_frac = Math.ceil((cpuAmt * 1e15) / Number(st.cpu.weight));
+    const net_frac = Math.ceil((netAmt * 1e15) / Number(st.net.weight));
+    const f = Math.max(fee(st.cpu, cpuAmt) + fee(st.net, netAmt), num(st.min_powerup_fee));
+    const max = Math.ceil((f * 1.5 + 0.0005) * 1e4) / 1e4;
+    cost += max;
+    acts.push({ account: V.contract, name: "powerup", data: { payer: me, receiver: me, days: 1, net_frac: String(net_frac), cpu_frac: String(cpu_frac), max_payment: `${max.toFixed(V.prec)} ${V.sym}` } });
     cost = Math.ceil(cost * 1e4) / 1e4;
-    // pay in A; top A up from EOS (1:1 through core.vaulta) if it is short
-    const gap = Math.ceil((cost - aBal) * 1e4) / 1e4;
+    // Pay in A when the A left after the transaction covers it; otherwise convert
+    // the difference from EOS first (1:1 through core.vaulta, at the very front).
+    const aFree = Math.min(aBal, aBal - spend.a + spend.aIn);
+    const eFree = eBal - spend.e;
+    const gap = Math.ceil((cost - Math.max(0, aFree)) * 1e4) / 1e4;
     if (gap > 0) {
-      if (eBal >= gap) acts.unshift({ account: "eosio.token", name: "transfer", data: { from: me, to: V.contract, quantity: `${gap.toFixed(WHCHAIN.prec)} ${WHCHAIN.sym}`, memo: "" } });
+      if (eFree >= gap) acts.unshift({ account: "eosio.token", name: "transfer", data: { from: me, to: V.contract, quantity: `${gap.toFixed(WHCHAIN.prec)} ${WHCHAIN.sym}`, memo: "" } });
       else out.ok = false;
     }
     return { ...out, acts, cost };
@@ -194,8 +217,12 @@ const WHFUEL = (() => {
   async function plan(me, actions) {
     if (!usable() || !on()) return [];
     if (actions.some((x) => x.name === "powerup" || x.name === "buyrambytes" || x.name === "buyram")) return [];
-    const q = await quote(me);
+    const q = await quote(me, false, spends(me, actions));
     if (!q.acts.length) return [];
+    if (q.cost > AUTO_MAX_A) {
+      WH.toast(`Your account is out of CPU/NET, and renting it now would cost up to ${q.cost} A. Use "Rent CPU/NET with A" on the Vaulta card if you want to go ahead.`, "error");
+      return [];
+    }
     if (!q.ok) {
       WH.toast(`Your account is out of CPU/NET and has under ${q.cost} A to rent more. Add a little A or EOS, or let Anchor cover it (Greymass Fuel).`, "error");
       return [];

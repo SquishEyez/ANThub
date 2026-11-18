@@ -6,8 +6,9 @@
 set -euo pipefail
 KS="${1:?usage: ./sign.sh /path/to/keystore.jks [alias]}"; ALIAS="${2:-waxhub}"
 DIR="$(cd "$(dirname "$0")" && pwd)"
-IN="$DIR/dist/antelope-hub-1.0-unsigned.apk"
-OUT="$DIR/dist/antelope-hub-1.0.0.apk"
+VER="$(node -p 'require("'"$DIR"'/package.json").version')"
+IN="$DIR/dist/antelope-hub-$VER-unsigned.apk"
+OUT="$DIR/dist/antelope-hub-$VER.apk"
 zipalign -f -p 4 "$IN" "$DIR/dist/aligned.apk"
 apksigner sign --ks "$KS" --ks-key-alias "$ALIAS" --out "$OUT" "$DIR/dist/aligned.apk"
 rm "$DIR/dist/aligned.apk"

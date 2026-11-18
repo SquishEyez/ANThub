@@ -220,6 +220,9 @@ The **Approve a multisig proposal** task approves a proposal someone else create
 
 ## 7. Bridges and cross-chain
 - **Bridges** lists every bridge on the network with live status (Active, Quiet, Inactive), the wrapped tokens you hold from it, and its actions.
+- **WAX → Ethereum:** on the WAX Bridge card, **Send WAX to Ethereum** sends native WAX to an Ethereum address you control, where it arrives as WAXP (ERC-20). Minimum 10 WAX. Don't send to an exchange deposit address unless the exchange says it accepts bridge deposits.
+- **A → EOS EVM:** on the EOS EVM card, **Send A (gas token) to EOS EVM** sends A (or EOS, converted 1:1 in the same transaction) to any EVM address. There's a 0.1 A entry fee.
+- **Address check:** an Ethereum/EVM address written in mixed case must match its checksum, so a mistyped character is caught before you sign.
 - **Cross-chain → Receive** gives you a personal deposit address on Ethereum, BNB Chain, Polygon, TON, NEAR and Sui. It pays into your account, and you can send to it straight from an exchange. The EVM address is recomputed on your device and only shown if it matches.
 - **Cross-chain → Swap** sends any token you hold and delivers another token on another chain, in one signature. You see the expected amount, the minimum and the price impact.
 - **Courier fee:** for Ethereum, BNB Chain and Polygon, a small fee pays for delivery. Without it, the recipient has to release the tokens on that chain themselves.

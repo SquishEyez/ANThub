@@ -6,7 +6,10 @@
 //   EOS EVM     deposit  = <token>::transfer -> eosio.evmin, memo "0x<address>" (tokens registered in eosio.erc2o)
 //   pNetwork    redeem   = <x>.ptokens::redeem2(sender, quantity, memo=<destination>, user_data, chain_id)
 //                          chain_id 01EC97DE = Bitcoin, 005FE7F9 = Ethereum
+//   EOS EVM     A (gas)  = core.vaulta::transfer A -> eosio.evm, memo "0x<address>" (ingress fee in eosio.evm config)
 //   WAX bridge  claim    = bridge.wax::claimtoken(evm_tx_hash) / claimnft(evm_chain, evm_tx_hash)
+//               WAX out  = eosio.token::transfer WAX -> bridge.wax, memo "ethereum-<WAXP ERC-20>-0x<recipient>"
+//                          (Ethereum only; minimum in minxfer.a, limits in translimit.a)
 //   Alcor (Telos hub) claim = bridge.alcor::claim(owner, sym_code)
 //   Libre BTC   peg-out  = btc.libre::transfer BTC -> x.libre, memo "<bitcoin address>"
 //   Libre USDT  peg-out  = usdt.libre::transfer USDT -> t.libre, memo "0x<ethereum address>" (fee taken)
@@ -24,7 +27,7 @@ const WHBR = (() => {
       { id: "wombat", name: "Wombat Bridge", what: "Wombat's IBC-style WAX ⇄ EOS bridge", contracts: ["wombatbridge"], tokens: ["wombatbridge"], panel: "ibc" },
     ],
     eos: [
-      { id: "eosevm", name: "EOS EVM", what: "EOS native ⇄ EOS EVM, for supported tokens", contracts: ["eosio.evm", "eosio.erc2o"], panel: "eosevm" },
+      { id: "eosevm", name: "EOS EVM", what: "EOS native ⇄ EOS EVM: A (gas) and supported tokens", contracts: ["eosio.evm", "eosio.erc2o"], panel: "eosevm" },
       { id: "ptokens", name: "pNetwork pTokens", what: "Wrapped BTC, ETH, LINK and LTC (pBTC, pETH…)", contracts: ["btc.ptokens", "eth.ptokens", "link.ptokens", "ltc.ptokens"], tokens: ["btc.ptokens", "eth.ptokens", "link.ptokens", "ltc.ptokens"], panel: "ptokens" },
       { id: "ibc", name: "Antelope IBC", what: "EOS ⇄ WAX / Telos / UX (wrapped WAX, TLOS, UTX on EOS)", contracts: ["ibc.wt.wax", "ibc.wl.wax", "ibc.wt.tlos", "ibc.wt.ux"], tokens: ["ibc.wt.wax", "ibc.wt.tlos", "ibc.wt.ux"], panel: "ibc" },
       { id: "alcor", name: "Alcor Bridge", what: "Send tokens to Telos, Ethereum, BNB Chain, Polygon and other Antelope chains", contracts: ["bridge.alcor"], tokens: ["wrap.alcor"], panel: "alcorspoke" },
@@ -68,7 +71,16 @@ const WHBR = (() => {
     if (days < 120) return { label: `Quiet: last used ${Math.round(days)}d ago`, cls: "accent" };
     return { label: `Inactive since ${new Date(ts).toLocaleDateString()}`, cls: "bad" };
   }
-  const isEvm = (a) => /^0x[0-9a-fA-F]{40}$/.test(String(a || "").trim());
+  // 0x + 40 hex digits; a mixed-case address must also match its EIP-55 checksum
+  // (catches most typos before anything is sent)
+  const isEvm = (a) => {
+    const s = String(a || "").trim();
+    if (!/^0x[0-9a-fA-F]{40}$/.test(s)) return false;
+    const h = s.slice(2);
+    if (h === h.toLowerCase() || h === h.toUpperCase()) return true;
+    const k = WHAC.hex(WHAC.keccak256(new TextEncoder().encode(h.toLowerCase())));
+    return [...h].every((c, i) => !/[a-f]/i.test(c) || (parseInt(k[i], 16) >= 8) === (c === c.toUpperCase()));
+  };
   const isBtc = (a) => /^(bc1[0-9a-z]{25,90}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$/.test(String(a || "").trim());
   // Alcor bridge: network ids ("domains") used in memos
   const ALCOR = {
@@ -313,6 +325,74 @@ function BR_TelosEvm({ me, signedIn, ask, bals, tick }) {
 }
 
 /* ------------------------------------------------------------- EOS EVM */
+// EOS EVM's gas token is A: core.vaulta::transfer A -> eosio.evm with the 0x address as
+// memo (checked by dry run; EOS itself is refused with "received unexpected token", and
+// the amount must be above the ingress fee). EOS is converted to A first if needed.
+function BR_EosEvmNative({ me, signedIn, ask, bals, login }) {
+  const V = WHCHAIN.vaulta;
+  const [to, setTo] = De.useState("");
+  const [amt, setAmt] = De.useState("");
+  const [fee, setFee] = De.useState(null);
+  De.useEffect(() => {
+    qr({ code: "eosio.evm", scope: "eosio.evm", table: "config", limit: 1 })
+      .then((x) => setFee((x.rows || [])[0]?.ingress_bridge_fee || null))
+      .catch(() => setFee(null));
+  }, []);
+  if (!V?.converts) return null;
+  const find = (c, s) => Number((bals || []).find((b) => b.contract === c && b.currency === s)?.amount || 0);
+  const aBal = find(V.contract, V.sym);
+  const eBal = find("eosio.token", WHCHAIN.sym);
+  const feeN = NV.num(fee);
+  const a = Number(String(amt).replace(",", "."));
+  const fromEos = Math.max(0, Math.round((a - aBal) * 1e4) / 1e4);
+  const err =
+    to && !WHBR.isEvm(to) ? "That isn't a valid EVM address (check every character)."
+    : amt && !(a > 0) ? "Enter an amount"
+    : a > 0 && fee && a <= feeN ? `Send more than the ${WH.trimAsset(fee)} entry fee.`
+    : signedIn && a > aBal + eBal ? "That's more than you have."
+    : "";
+  const q = `${(a || 0).toFixed(V.prec)} ${V.sym}`;
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div className="label">Send A (gas token) to EOS EVM</div>
+      <p className="muted" style={{ fontSize: 12.5, margin: "0 0 8px" }}>
+        EOS EVM runs on A. {fee ? `Entry fee ${WH.trimAsset(fee)}, taken from the amount.` : ""} Any {WHCHAIN.sym} needed is converted to A 1:1 in the same transaction.
+      </p>
+      {!signedIn && <BR_SignIn login={login} what="send A to EOS EVM" />}
+      {signedIn && (
+        <>
+          <input className={`input ${to && !WHBR.isEvm(to) ? "wh-invalid" : ""}`} placeholder="0x… EVM address" value={to} onChange={(ev) => setTo(ev.target.value.trim())} autoCapitalize="none" spellCheck={false} />
+          <div style={{ height: 8 }} />
+          <WH_AmountInput label={`Amount (you have ${NV.fmt(aBal)} A, ${NV.fmt(eBal)} ${WHCHAIN.sym})`} value={amt} max={String(aBal + eBal)} symbol={V.sym} onChange={setAmt} />
+          {err && <div className="wh-field-msg err">{err}</div>}
+          <button
+            className="btn primary block"
+            disabled={!!err || !WHBR.isEvm(to) || !(a > 0) || !fee}
+            onClick={() =>
+              ask(
+                "Send A to EOS EVM",
+                [
+                  ...(fromEos > 0 ? [{ account: "eosio.token", name: "transfer", data: { from: me, to: V.contract, quantity: `${fromEos.toFixed(WHCHAIN.prec)} ${WHCHAIN.sym}`, memo: "" } }] : []),
+                  { account: V.contract, name: "transfer", data: { from: me, to: "eosio.evm", quantity: q, memo: to } },
+                ],
+                [
+                  { label: "EVM address", value: to },
+                  { label: "Amount", value: q },
+                  ...(fromEos > 0 ? [{ label: `Converted from ${WHCHAIN.sym}`, value: `${fromEos.toFixed(WHCHAIN.prec)} ${WHCHAIN.sym}` }] : []),
+                  { label: "Entry fee", value: fee },
+                ],
+                "A arrives at that EVM address within seconds, minus the fee. Double-check the address: EVM transfers can't be reversed.",
+              )
+            }
+          >
+            Review deposit
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function BR_EosEvm({ me, signedIn, ask, bals, login }) {
   const [reg, setReg] = De.useState([]);
   const [tok, setTok] = De.useState("");
@@ -328,6 +408,8 @@ function BR_EosEvm({ me, signedIn, ask, bals, login }) {
   const fee = r ? Number(String(r.ingress_fee).split(" ")[0]) : 0;
   return (
     <>
+      <BR_EosEvmNative me={me} signedIn={signedIn} ask={ask} bals={bals} login={login} />
+      <div className="label">Send other tokens to EOS EVM</div>
       <p className="muted" style={{ fontSize: 12.5, margin: "0 0 8px" }}>
         Supported tokens: {reg.map((x) => String(x.ingress_fee).split(" ")[1]).join(", ") || "…"}. Each has a small entry fee, taken from the amount.
       </p>
@@ -397,7 +479,69 @@ function BR_PTokens({ me, signedIn, ask, bals, contracts, login }) {
 }
 
 /* --------------------------------------------------------- WAX bridge */
-function BR_WaxBridge({ me, signedIn, ask, tick, login }) {
+// Native WAX leaves through bridge.wax as WAXP, the ERC-20 on Ethereum. The memo names
+// the destination chain, the ERC-20 contract and the recipient. Checked by dry run:
+// the WAXP contract is accepted; the old WAXE contract (0x7a2B…, 1000:1) is refused
+// ("outbound bridging of this token is closed"); other chains are "not supported yet".
+const BR_WAXP_ETH = "0x2A79324c19Ef2B89Ea98b23BC669B7E7c9f8A517";
+
+function BR_WaxOut({ me, signedIn, ask, bals, login }) {
+  const [to, setTo] = De.useState("");
+  const [amt, setAmt] = De.useState("");
+  const [lim, setLim] = De.useState({ min: 10, perTx: 0, perDay: 0 });
+  De.useEffect(() => {
+    const forWax = (rows) => (rows || []).find((r) => r.wax_token_name === "8,WAX");
+    Promise.all([
+      qr({ code: "bridge.wax", scope: "bridge.wax", table: "minxfer.a", limit: 50 }).then((x) => forWax(x.rows)),
+      qr({ code: "bridge.wax", scope: "bridge.wax", table: "translimit.a", limit: 50 }).then((x) => forWax(x.rows)),
+    ])
+      .then(([m, t]) => setLim({ min: NV.num(m?.min_transfer) || 10, perTx: NV.num(t?.per_transfer_limit), perDay: NV.num(t?.per_user_daily_limit) }))
+      .catch(() => {});
+  }, []);
+  const wax = Number((bals || []).find((b) => b.contract === "eosio.token" && b.currency === "WAX")?.amount || 0);
+  const a = Number(String(amt).replace(",", "."));
+  const err =
+    to && !WHBR.isEvm(to) ? "That isn't a valid Ethereum address (check every character)."
+    : amt && !(a > 0) ? "Enter an amount"
+    : a > 0 && a < lim.min ? `The bridge minimum is ${lim.min} WAX.`
+    : lim.perTx && a > lim.perTx ? `The bridge limit is ${NV.fmt(lim.perTx, 0)} WAX per transfer.`
+    : signedIn && a > wax ? "That's more than you have."
+    : "";
+  const q = `${(a || 0).toFixed(8)} WAX`;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div className="label">Send WAX to Ethereum</div>
+      <p className="muted" style={{ fontSize: 12.5, margin: "0 0 8px" }}>
+        Arrives as WAXP, the official WAX ERC-20 token on Ethereum. Minimum {lim.min} WAX{lim.perDay ? `, up to ${NV.fmt(lim.perDay, 0)} WAX per day` : ""}. You pay Ethereum gas only if you later move it there.
+      </p>
+      {!signedIn && <BR_SignIn login={login} what="send WAX to Ethereum" />}
+      {signedIn && (
+        <>
+          <input className={`input ${to && !WHBR.isEvm(to) ? "wh-invalid" : ""}`} placeholder="0x… Ethereum address you control" value={to} onChange={(ev) => setTo(ev.target.value.trim())} autoCapitalize="none" spellCheck={false} />
+          <div style={{ height: 8 }} />
+          <WH_AmountInput label="Amount" value={amt} max={String(wax)} symbol="WAX" onChange={setAmt} />
+          {err && <div className="wh-field-msg err">{err}</div>}
+          <button
+            className="btn primary block"
+            disabled={!!err || !WHBR.isEvm(to) || !(a > 0)}
+            onClick={() =>
+              ask(
+                "Send WAX to Ethereum",
+                [{ account: "eosio.token", name: "transfer", data: { from: me, to: "bridge.wax", quantity: q, memo: `ethereum-${BR_WAXP_ETH}-${to}` } }],
+                [{ label: "Amount", value: q }, { label: "Receive", value: `${(a || 0).toFixed(8)} WAXP (ERC-20)` }, { label: "Ethereum address", value: to }, { label: "WAXP contract", value: BR_WAXP_ETH }],
+                "Send only to an Ethereum address you control. Exchanges may not credit bridge deposits. A bridge transfer can't be reversed.",
+              )
+            }
+          >
+            Review transfer
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function BR_WaxBridge({ me, signedIn, ask, tick, login, bals }) {
   const [pending, setPending] = De.useState([]);
   const [hash, setHash] = De.useState("");
   De.useEffect(() => {
@@ -413,7 +557,7 @@ function BR_WaxBridge({ me, signedIn, ask, tick, login }) {
   return (
     <>
       <p className="muted" style={{ fontSize: 12.5, margin: "0 0 8px" }}>
-        Transfers into WAX from Ethereum, BNB Chain or Solana sometimes need a final claim on WAX. Anything waiting for {signedIn ? me : "you"} appears below. To send out of WAX, use the official WAX bridge site.
+        Transfers into WAX from Ethereum, BNB Chain or Solana sometimes need a final claim on WAX. Anything waiting for {signedIn ? me : "you"} appears below.
       </p>
       {pending.map((p) => (
         <div className="kv" key={p.id} style={{ alignItems: "center" }}>
@@ -434,6 +578,7 @@ function BR_WaxBridge({ me, signedIn, ask, tick, login }) {
           Claim
         </button>
       </div>
+      <BR_WaxOut me={me} signedIn={signedIn} ask={ask} bals={bals} login={login} />
     </>
   );
 }
