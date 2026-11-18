@@ -10,5 +10,5 @@ rm -rf "$ROOT/desktop/web" && cp -r "$ROOT/android/dist/web" "$ROOT/desktop/web"
 cd "$ROOT/desktop" && npm install --no-audit --no-fund
 npm run dist
 echo
-echo "Android (unsigned): android/dist/antelope-hub-1.0-unsigned.apk  -> sign with android/sign.sh"
+echo "Android (unsigned): android/dist/antelope-hub-*-unsigned.apk  -> sign with android/sign.sh"
 echo "Linux:              desktop/release/*.AppImage, desktop/release/*.deb"

@@ -106,7 +106,7 @@ The system scanners (unstake refunds, stake to others) run where staking exists.
 
 On Jungle 4, `core.vaulta` doesn't convert EOS to A, so REX there needs test A tokens.
 
-**Resources paid in A.** `core.vaulta::powerup(payer, receiver, days, net_frac, cpu_frac, max_payment A)` and `core.vaulta::buyrambytes` take A. A PowerUp at the start of a transaction pays for that same transaction, so an account with 0 CPU and 0 NET and only A can still sign. Checked by dry run on mainnet: an `atomicassets::transfer` from three such accounts passed with `core.vaulta::powerup` in front, and failed without it (`net usage is too high: 104 > 0`). `max_payment` must be covered by the A balance, so it is sized from `eosio` `powup.state` (calc_powerup_fee) at 1.5× the quote. A PowerUp can also need about 130 bytes of RAM for its order row, plus a row for the EOS it converts, so 1 KB of RAM is bought in A when less than 800 bytes are free. AtomicAssets transfers need no RAM from the sender (the asset's `ram_payer` pays).
+**Resources paid in A.** `core.vaulta::powerup(payer, receiver, days, net_frac, cpu_frac, max_payment A)` and `core.vaulta::buyrambytes` take A. A PowerUp at the start of a transaction pays for that same transaction, so an account with 0 CPU and 0 NET and only A can still sign. Checked by dry run on mainnet: an `atomicassets::transfer` from three such accounts passed with `core.vaulta::powerup` in front, and failed without it (`net usage is too high: 104 > 0`). `max_payment` must be covered by the A balance, so it is sized from `eosio` `powup.state` (calc_powerup_fee) at 1.5× the quote. A PowerUp can also need about 130 bytes of RAM for its order row, plus a row for the EOS it converts, so 1 KB of RAM is bought in A when less than 800 bytes are free. AtomicAssets transfers need no RAM from the sender (the asset's `ram_payer` pays). The app adds these only when CPU or NET is short, never spends A the transaction itself needs (EOS is converted first instead), and never adds more than 0.5 A without asking.
 
 ## Bridges
 
@@ -115,9 +115,11 @@ Live status is read from each contract's latest on-chain action (Hyperion). Thes
 | Bridge | Network | User actions in the app |
 |---|---|---|
 | Telos EVM (`eosio.evm`) | Telos | `eosio.token::transfer` TLOS to `eosio.evm` with memo `0x<address>`; `eosio.evm::withdraw(to, quantity)` |
+| EOS EVM (`eosio.evm`) | EOS | gas token A: `core.vaulta::transfer` A to `eosio.evm` with memo `0x<address>`; must exceed `config.ingress_bridge_fee` (0.1 A). EOS itself is refused ("received unexpected token") |
 | EOS EVM (`eosio.evmin` → `eosio.erc2o`) | EOS | `<token>::transfer` to `eosio.evmin` with memo `0x<address>`, for tokens in `eosio.erc2o.tokens` |
 | pNetwork (`*.ptokens`) | EOS, Telos, Libre | `redeem2(sender, quantity, memo, user_data, chain_id)`: PBTC → `01EC97DE` (Bitcoin), PUSDT → `005FE7F9` (Ethereum) |
 | WAX Bridge (`bridge.wax`) | WAX | `claimtoken(evm_tx_hash)`, `claimnft(evm_chain, evm_tx_hash)`; pending rows in `evmtokentx.a` / `evmnfttx.a` |
+| WAX Bridge out (`bridge.wax`) | WAX | `eosio.token::transfer` WAX to `bridge.wax` with memo `ethereum-0x2A79324c19Ef2B89Ea98b23BC669B7E7c9f8A517-0x<recipient>` (WAXP ERC-20); minimum in `minxfer.a`, limits in `translimit.a`. The old WAXE route (`0x7a2B…`, 1000:1, listed in `waxtokens.b`) is closed: "outbound bridging of this token is closed". Other chains: "not supported yet" |
 | Alcor bridge hub (`bridge.alcor`) | Telos | `claim(owner, sym_code)` from `claims` (scope = owner); send out = `wrap.alcor::transfer` to `bridge.alcor` with memo `<domain>:<recipient>`, routes from `routes` |
 | Alcor bridge spokes (`bridge.alcor`) | WAX, EOS, XPR | `<token>::transfer` to `bridge.alcor` with memo `<telos account>`, or `hop.alcor:<domain>:<recipient>\|<own domain>:<refund account>`; tokens from `listing` (scope = token contract) |
 | Libre USDT (`usdt.libre`, `t.libre`) | Libre | `usdt.libre::transfer` to `t.libre` with memo `0x<ethereum address>` (fee deducted) |

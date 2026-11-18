@@ -7,8 +7,9 @@
 // stable, apply src/patches.mjs, rewrite WAX-only values (chainify.mjs), inject
 // src/chain.js and the src/*.jsx feature layer plus src/ext.css, minify, rebrand
 // icons, splash screens and the launcher label, and write an unsigned APK
-// (dist/antelope-hub-1.0-unsigned.apk) plus the web folder (dist/web) for
-// testing in a browser. Sign with sign.sh.
+// (dist/antelope-hub-<version>-unsigned.apk) plus the web folder (dist/web) for
+// testing in a browser. Sign with sign.sh. The version comes from package.json
+// ("version" and "androidVersionCode").
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,6 +29,7 @@ if (!apkIn) {
 }
 
 const dist = path.join(here, "dist");
+const pkg = JSON.parse(fs.readFileSync(path.join(here, "package.json"), "utf8"));
 const tmp = path.join(dist, "apk");
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(tmp, { recursive: true });
@@ -118,7 +120,7 @@ console.log(`web bundle: ${newJs} (${(min.code.length / 1024).toFixed(0)} KB), $
 if (webOnly) process.exit(0);
 
 // 5. release hardening: correct version metadata, no WebView remote debugging, no mixed content
-execFileSync("python3", ["-I", path.join(here, "axml.py"), "patch", path.join(tmp, "AndroidManifest.xml"), path.join(tmp, "AndroidManifest.xml"), "versionCode=12", "versionName=1.0.0"], { stdio: "inherit" });
+execFileSync("python3", ["-I", path.join(here, "axml.py"), "patch", path.join(tmp, "AndroidManifest.xml"), path.join(tmp, "AndroidManifest.xml"), `versionCode=${pkg.androidVersionCode}`, `versionName=${pkg.version}`], { stdio: "inherit" });
 const capPath = path.join(tmp, "assets/capacitor.config.json");
 const cap = JSON.parse(fs.readFileSync(capPath, "utf8"));
 cap.android = { ...(cap.android || {}), webContentsDebuggingEnabled: false, allowMixedContent: false };
@@ -128,6 +130,6 @@ execFileSync("python3", ["-I", path.join(here, "arsc.py"), path.join(tmp, "resou
 fs.writeFileSync(capPath, JSON.stringify(cap, null, "\t"));
 
 // 6. repack: keep every entry's original compression (resources.arsc etc. stay stored)
-execFileSync("python3", ["-I", path.join(here, "repack.py"), path.resolve(apkIn), tmp, path.join(dist, "antelope-hub-1.0-unsigned.apk")], {
+execFileSync("python3", ["-I", path.join(here, "repack.py"), path.resolve(apkIn), tmp, path.join(dist, `antelope-hub-${pkg.version}-unsigned.apk`)], {
   stdio: "inherit",
 });

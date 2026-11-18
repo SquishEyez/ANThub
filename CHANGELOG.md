@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 1.1.0: Wombat, A for resources, more bridges
 
+- **Bridges: send WAX to Ethereum**: native WAX goes out through the official WAX Bridge (`bridge.wax`) and arrives as WAXP, the ERC-20 on Ethereum. Minimum and limits are read from the contract (10 WAX minimum today)
+- **Bridges: send A to EOS EVM**: EOS EVM's gas token is now A. Send A (or EOS, converted 1:1 in the same transaction) to any EVM address; the 0.1 A entry fee is read from `eosio.evm`
+- **Safer EVM addresses**: mixed-case Ethereum/EVM addresses must match their EIP-55 checksum, so most typos are caught before anything is sent
 - **Rescue & recover**: Wombat Dungeon Master on WAX and EOS. Finds NFTs hidden in the dungeon (unstake), unstaked NFTs ready to claim after the 24-hour wait, and the daily candy claim
 - **Contract console**: Wombat Dungeon Master recipes (unstake, claim, claim candy)
-- **EOS: resources paid in A**: accounts that converted everything to A (staked EOS included) can still send NFTs and tokens. When CPU, NET or RAM is short, a small PowerUp paid in A (and 1 KB of RAM if needed) goes at the front of the transaction. The Vaulta card shows resource health and has an on/off switch and a "Rent CPU/NET for 24h with A now" button
+- **EOS: resources paid in A**: accounts that converted everything to A (staked EOS included) can still send NFTs and tokens. When CPU, NET or RAM is short, a small PowerUp paid in A (and 1 KB of RAM if needed) goes at the front of the transaction. The Vaulta card shows resource health and has an on/off switch and a "Rent CPU/NET for 24h with A now" button. Automatic top-ups never spend A the transaction itself needs and are capped at 0.5 A
+- **XPR Network**: clearer advice for WebAuth accounts (back up the key in WebAuth, then import it into Anchor)
 
 ## 1.0.0: Antelope Hub
 
