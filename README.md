@@ -68,7 +68,7 @@ No. On Android, Antelope Hub installs over WAX Hub as an update. It's the same a
 Use the `.deb` instead. Newer Ubuntu blocks the sandbox AppImages need. On Ubuntu 22.04 you may need `sudo apt install libfuse2`.
 
 **It says I don't have enough CPU, NET or RAM.**
-Rent CPU and NET for a day with **More → Chain tools → PowerUp**, or buy a little RAM in the wallet. On XPR Network and Libre, resources are free.
+Rent CPU and NET for a day with **More → Chain tools → PowerUp**, or buy a little RAM in the wallet. On EOS, if you only hold A, the app pays for resources in A automatically (see the Vaulta card). On XPR Network and Libre, resources are free.
 
 **I think I have tokens or NFTs stuck somewhere.**
 Run **More → Rescue & recover**. It checks dozens of contracts and builds the transaction to get them back.

@@ -243,6 +243,7 @@ The **Approve a multisig proposal** task approves a proposal someone else create
 ## 9. Resources: CPU, NET and RAM
 On WAX, EOS, Telos and Jungle 4, transactions use **CPU** and **NET** (bandwidth), and stored data uses **RAM**.
 - **Not enough CPU/NET:** rent some for 24 hours with **More → Chain tools → PowerUp**, or stake tokens to CPU/NET in the Wallet.
+- **EOS account with only A (everything converted, stake included)?** You can still move NFTs and tokens. The **Vaulta ($A)** card in the Wallet shows your CPU, NET and RAM, and **Pay for resources with A when I run out** (on by default) adds a small 24-hour PowerUp paid in A, plus 1 KB of RAM if needed, to the transaction you sign. It usually costs well under 0.01 A. Your wallet lists the extra actions before you approve, and you can also rent on its own with **Rent CPU/NET for 24h with A now**.
 - **Not enough RAM:** buy a little in the Wallet. RAM is needed when a contract stores something new for you, such as a first token balance.
 - On **XPR Network and Libre**, resources are free.
 

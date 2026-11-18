@@ -4,6 +4,7 @@
 
 - **Rescue & recover**: Wombat Dungeon Master on WAX and EOS. Finds NFTs hidden in the dungeon (unstake), unstaked NFTs ready to claim after the 24-hour wait, and the daily candy claim
 - **Contract console**: Wombat Dungeon Master recipes (unstake, claim, claim candy)
+- **EOS: resources paid in A**: accounts that converted everything to A (staked EOS included) can still send NFTs and tokens. When CPU, NET or RAM is short, a small PowerUp paid in A (and 1 KB of RAM if needed) goes at the front of the transaction. The Vaulta card shows resource health and has an on/off switch and a "Rent CPU/NET for 24h with A now" button
 
 ## 1.0.0: Antelope Hub
 

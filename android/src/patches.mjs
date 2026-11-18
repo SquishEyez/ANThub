@@ -1095,6 +1095,8 @@ export const replace = [
     for (const x of e)
       if (x.name === "transfer" && x.data && x.data.to === "dex" && String(x.data.memo || "") !== "")
         throw new Error("Blocked: tokens sent to Metal X (dex) with a memo are not credited and can't be recovered. Deposit with an empty memo.");
+  // Vaulta: an account with no CPU/NET pays for them in A inside the same transaction
+  if (WHCHAIN.vaulta?.converts) e = [...(await WHFUEL.plan(String(t.actor), e).catch(() => [])), ...e];
   const r = String(t.actor),`,
   ],
   // the producer list: only registered, active producers (an inactive one makes the vote fail:

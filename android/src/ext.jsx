@@ -237,6 +237,7 @@ const WH = (() => {
     setSub: (sub) => (pendingSub = sub),
     setScreenBack: (fn) => (screenHandler = fn),
     setToast: (fn) => (toastFn = fn),
+    toast: (m, type = "info") => toastFn && toastFn(m, type),
   };
 })();
 
