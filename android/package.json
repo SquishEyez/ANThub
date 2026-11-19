@@ -1,8 +1,8 @@
 {
   "name": "antelope-hub-android",
   "private": true,
-  "version": "1.2.0",
-  "androidVersionCode": 16,
+  "version": "1.2.1",
+  "androidVersionCode": 17,
   "type": "module",
   "scripts": {
     "build": "node build.mjs base/wax-hub-2.0.apk",
