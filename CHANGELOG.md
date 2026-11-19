@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1: Metal X on every device
+
+- **Metal X works even when its server can't be reached.** Metal X's API uses a certificate that chains to "SSL.com TLS RSA Root CA 2022", which older devices (Android 13 and earlier) don't trust, so the app couldn't connect there. No Metal X account or setup was ever needed. When the API fails, the app now reads everything from the blockchain instead:
+  - Markets and last prices come from the `dex` contract, which keeps the last traded price.
+  - Your open orders come from your last 100 orders (history service, then a lookup in the order book).
+  - Trading, cancelling and withdrawing were always on-chain and work as before.
+  - The screen says when it's using the blockchain, and the Rescue check for Metal X orders uses the same fallback.
+
 ## 1.2.0: Metal X trading, WebAuth sign-in, working PowerUp
 
 - **Sign in with WebAuth on XPR Network.** WebAuth now sits next to Anchor on the sign-in screen. On a phone it opens the WebAuth app; on a computer you scan the QR code or use webauth.com. It uses XPR Network's official WharfKit plugin.

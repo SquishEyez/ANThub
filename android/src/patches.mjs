@@ -718,7 +718,7 @@ export const replace = [
   [`                          children: B.net_weight || "—",`, `                          children: B.net_weight ? WH.trimAsset(B.net_weight) : "—",`],
 
   /* ================================================== Multi-chain */
-  [`z9 = "2.1",`, `z9 = "1.2.0",`],
+  [`z9 = "2.1",`, `z9 = "1.2.1",`],
   // Cloud Wallet only exists on WAX; Anchor covers every chain
   [
     `      walletPlugins: [

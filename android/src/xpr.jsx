@@ -92,7 +92,9 @@ const WHX = (() => {
   let poolCache = null;
   const pools = () => (poolCache = poolCache || all("simpledex", "pools").catch((e) => ((poolCache = null), Promise.reject(e))));
   // Metal X REST API (xpr-network-dev-skill: metalx-dex.md). Orders themselves go
-  // on-chain; the API is only read from.
+  // on-chain; the API is only read from. Its certificate chains to "SSL.com TLS RSA
+  // Root CA 2022", which older devices (Android 13 and earlier) don't trust, so there
+  // the API can't be reached at all. Every read therefore falls back to the chain.
   const METALX = "https://dex.api.mainnet.metalx.com";
   async function mxGet(path) {
     const r = await Wf(`${METALX}/dex/v1/${path}`, { method: "GET" }, 15e3);
@@ -100,21 +102,94 @@ const WHX = (() => {
     const j = await r.json();
     return j.data || [];
   }
-  const openOrders = (me) => mxGet(`orders/open?account=${me}&limit=100`);
-  // Markets open for trading (status 1), with each market's last price from the daily stats.
+  let apiDown = false; // set once the API has failed, so screens can say where data came from
+  const viaApi = (fn, fallback) => fn().catch((e) => ((apiDown = true), fallback(e)));
+
+  // Markets from the dex contract: `ask_token.quantity` holds the last traded price.
+  async function chainMarkets() {
+    const rows = await all("dex", "markets");
+    return rows.map((m) => {
+      const b = sp(m.bid_token.sym);
+      const [last, code] = String(m.ask_token.quantity).split(" ");
+      const ap = (last.split(".")[1] || "").length;
+      const fee = Math.round(Number(m.bid_fee) * 1000) / 1000;
+      return {
+        market_id: m.market_id,
+        symbol: `${b.c}_${code}`,
+        status_code: m.status_code,
+        bid_token: { code: b.c, precision: b.p, contract: m.bid_token.contract },
+        ask_token: { code, precision: ap, contract: m.ask_token.contract },
+        maker_fee: fee,
+        taker_fee: fee,
+        last: Number(last),
+        change: 0,
+      };
+    });
+  }
+  // Markets open for trading (status 1), with each market's last price.
   let mxCache = null;
   const markets = () =>
     (mxCache =
       mxCache ||
-      Promise.all([mxGet("markets/all"), mxGet("trades/daily").catch(() => [])])
-        .then(([ms, daily]) => {
-          const last = Object.fromEntries(daily.map((d) => [d.market_id, d]));
-          return ms.map((m) => ({ ...m, last: last[m.market_id]?.close || 0, change: last[m.market_id]?.change_percentage || 0 }));
-        })
-        .catch((e) => ((mxCache = null), Promise.reject(e))));
+      viaApi(
+        () =>
+          Promise.all([mxGet("markets/all"), mxGet("trades/daily").catch(() => [])]).then(([ms, daily]) => {
+            const last = Object.fromEntries(daily.map((d) => [d.market_id, d]));
+            return ms.map((m) => ({ ...m, last: last[m.market_id]?.close || 0, change: last[m.market_id]?.change_percentage || 0 }));
+          }),
+        () => chainMarkets(),
+      ).catch((e) => ((mxCache = null), Promise.reject(e))));
+
+  // Open orders without the API: the order book has no account index, so take the
+  // account's recent placeorder transactions from Hyperion, read the order id the dex
+  // logged for each (dex::logorder), then check which are still in the order book, the
+  // queue or the stop-loss table (all keyed by order id).
+  const RECENT_ORDERS = 100;
+  async function hyperion(path) {
+    let err;
+    for (const h of WHCHAIN.hyperion) {
+      try {
+        const r = await Wf(`${h}${path}`, { method: "GET" }, 15e3);
+        if (r.ok) return r.json();
+        err = new Error(`history ${r.status}`);
+      } catch (e) {
+        err = e;
+      }
+    }
+    throw err || new Error("No history service for this network");
+  }
+  async function chainOpenOrders(me) {
+    const [acts, mk] = await Promise.all([hyperion(`/v2/history/get_actions?account=${me}&filter=dex:placeorder&limit=${RECENT_ORDERS}&sort=desc`), markets()]);
+    const trxs = [...new Set((acts.actions || []).map((a) => a.trx_id))];
+    const ids = new Set();
+    for (let i = 0; i < trxs.length; i += 10) {
+      const txs = await Promise.all(trxs.slice(i, i + 10).map((id) => hyperion(`/v2/history/get_transaction?id=${id}`).catch(() => null)));
+      for (const tx of txs)
+        for (const a of tx?.actions || [])
+          if (a.act?.name === "logorder" && a.act.data?.order?.account_name === me) ids.add(String(a.act.data.order.order_id));
+    }
+    const byId = Object.fromEntries((mk || []).map((m) => [m.market_id, m]));
+    const open = [];
+    await Promise.all(
+      [...ids].map(async (id) => {
+        for (const table of ["orderbook", "orderq", "sltp"]) {
+          const r = await qr({ code: "dex", scope: "dex", table, lower_bound: id, upper_bound: id, limit: 1 }).catch(() => ({ rows: [] }));
+          const o = (r.rows || [])[0];
+          if (!o || o.account_name !== me) continue;
+          const m = byId[o.market_id];
+          const qp = m ? (Number(o.order_side) === 1 ? m.ask_token.precision : m.bid_token.precision) : 0;
+          open.push({ order_id: String(o.order_id), market_id: o.market_id, order_side: Number(o.order_side), quantity_curr: Number(o.quantity) / 10 ** qp, price: m ? Number(o.price) / 10 ** m.ask_token.precision : Number(o.price), created_at: null, from_chain: true });
+          break;
+        }
+      }),
+    );
+    return open.sort((a, b) => Number(b.order_id) - Number(a.order_id));
+  }
+  const openOrders = (me) => viaApi(() => mxGet(`orders/open?account=${me}&limit=100`), () => chainOpenOrders(me));
+  const usingChain = () => apiDown;
   // Amounts from the API are plain numbers; show them at the token's precision, never as 1e-7.
   const fmtAmt = (n, prec) => Number(n || 0).toLocaleString(void 0, { maximumFractionDigits: prec ?? 8, minimumFractionDigits: 0 });
-  return { raw, sp, q, all, one, oracle, loan, health, swapOut, pools, openOrders, markets, fmtAmt };
+  return { raw, sp, q, all, one, oracle, loan, health, swapOut, pools, openOrders, markets, usingChain, fmtAmt };
 })();
 
 function WH_XprDefi({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
@@ -634,13 +709,13 @@ function XP_MetalX({ me, signedIn, login, ask, tick }) {
   De.useEffect(() => {
     WHX.markets()
       .then(setMarkets)
-      .catch((x) => (setErr(`Couldn't reach the Metal X API (${x?.message || x}).`), setMarkets([])));
+      .catch((x) => (setErr(`Couldn't load Metal X markets (${x?.message || x}).`), setMarkets([])));
   }, []);
   De.useEffect(() => {
     if (!me) return;
     WHX.openOrders(me)
       .then((x) => setOrders(Array.isArray(x) ? x : []))
-      .catch((x) => (setErr(`Couldn't reach the Metal X API (${x?.message || x}). Your exchange balance below still comes from the chain.`), setOrders([])));
+      .catch((x) => (setErr(`Couldn't load your open orders (${x?.message || x}). Your exchange balance below still comes from the chain.`), setOrders([])));
     qr({ code: "dex", scope: "dex", table: "balances", lower_bound: me, upper_bound: me, limit: 1 }).then((x) => setBal((x.rows || [])[0]?.balances || [])).catch(() => setBal([]));
     H9(me).then((b) => setWallet(b || [])).catch(() => setWallet([]));
   }, [me, tick]);
@@ -650,6 +725,11 @@ function XP_MetalX({ me, signedIn, login, ask, tick }) {
   return (
     <>
       {err && <div className="warn">{err}</div>}
+      {WHX.usingChain() && (
+        <div className="faint" style={{ fontSize: 12.5, margin: "0 0 10px" }}>
+          This device can't open a secure connection to Metal X's server (its certificate is newer than this device trusts), so markets, prices and your recent orders are read straight from the blockchain (open orders from your last 100). Trading works the same.
+        </div>
+      )}
       <XP_MetalTrade me={me} ask={ask} markets={markets} bals={wallet} />
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Open orders</h3>
