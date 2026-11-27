@@ -890,7 +890,7 @@ const WH_QUICK = [
   ["Find stuck assets", { tool: "rescue" }],
   ["Bridges", { tool: "bridges" }],
   ["Get CPU (PowerUp)", { tool: "tools", sub: "power" }],
-  ["Swap tokens", { tool: "dex", sub: "swap" }],
+  ["Swap tokens (best price)", { tool: "alcorswap" }],
   ["Open packs", { tool: "packs" }],
   ["Vote for producers", { tool: "tools", sub: "vote" }],
   ["Portfolio value", { tool: "tools", sub: "portfolio" }],

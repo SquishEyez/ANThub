@@ -718,7 +718,7 @@ export const replace = [
   [`                          children: B.net_weight || "—",`, `                          children: B.net_weight ? WH.trimAsset(B.net_weight) : "—",`],
 
   /* ================================================== Multi-chain */
-  [`z9 = "2.1",`, `z9 = "1.2.1",`],
+  [`z9 = "2.1",`, `z9 = "1.3.0",`],
   // Cloud Wallet only exists on WAX; Anchor covers every chain
   [
     `      walletPlugins: [
@@ -972,7 +972,7 @@ export const replace = [
     title: \`\${WHCHAIN.name} essentials\`,
     blurb: {
       wax: "Claim voting rewards and genesis WAX",
-      eos: "REX yield, gift or transfer RAM, premium-name auctions",
+      eos: "Staking (REX), gift or transfer RAM, premium-name auctions",
       telos: "Earn staking rewards with REX",
       xpr: "Stake XPR for rewards, withdraw from Metal X",
       libre: "Stake LIBRE for yield, vote in the Libre DAO",
@@ -1012,6 +1012,13 @@ export const replace = [
     id: "rescue",
     title: "Rescue & recover",`,
     `  {
+    id: "alcorswap",
+    title: "Swap",
+    blurb: "Best price for any token across Alcor's pools and order books, with the minimum you'll receive shown before you sign",
+    tag: "Alcor",
+    keys: "swap exchange trade convert buy sell token alcor best price route dex amm pool slippage",
+  },
+  {
     id: "xprdefi",
     title: "XPR DeFi",
     blurb: "Lend and borrow on LOAN, swap and manage liquidity on SimpleDEX, trade on Metal X, oracle prices and your WebAuth profile",
@@ -1056,6 +1063,7 @@ export const replace = [
           t === "more" && r === "telosstudio" && N.jsx(WH_TelosStudio, { ...$, onBack: Z }, "telosstudio" + whKey),
           t === "more" && r === "alcorx" && N.jsx(WH_Alcor, { ...$, onBack: Z }, "alcorx" + whKey),
           t === "more" && r === "xprdefi" && N.jsx(WH_XprDefi, { ...$, onBack: Z }, "xprdefi" + whKey),
+          t === "more" && r === "alcorswap" && N.jsx(WH_AlcorSwap, { ...$, onBack: Z }, "alcorswap" + whKey),
           t === "more" && r === "bridges" && N.jsx(WH_Bridges, { ...$, onBack: Z }, "bridges" + whKey),
           t === "more" && r === "rescue" && N.jsx(WH_Rescue, { ...$, onBack: Z }, "rescue" + whKey),`,
   ],
