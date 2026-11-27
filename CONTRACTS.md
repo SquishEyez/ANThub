@@ -158,6 +158,20 @@ Base `https://telos.alcor.exchange/api/bridge/v1` (public, no key).
 | Activity | `GET /hops?party=` | `hop.alcor::recover` offered on Telos for hops with `recover` |
 | Courier fee | `GET /fees` → `withdrawal` | appended to EVM destinations: `hop.alcor:<domain>:<address>:<fee>\|<own domain>:<account>` and `<domain>:<address>:<fee>` |
 
+## Alcor swaps (Swap tool)
+
+From Alcor's developer docs (docs.alcor.exchange, November 2026). The old per-chain API (`<chain>.alcor.exchange/api/...`) is deprecated. The current read API is `https://api.alcor.exchange/<chain>/` (chain: `wax`, `eos`, `telos`, `xpr`). Swap route, CPU payer and the bridge stay on the chain hosts and are current.
+
+| Step | Call | Checks in the app |
+|---|---|---|
+| Tokens | `GET api.alcor.exchange/<chain>/tokens` (id `<symbol lower case>-<contract>`, `price_usd`, `score`, `scam`, `trusted`) | tokens with `scam: true` are never offered |
+| Route | `GET <host>.alcor.exchange/api/v3/swapRouter/getRoute?tradeType=exactIn&input=&output=&amount=&slippage=&account=` (host `proton` for XPR) | fetched again when you tap Review; the answer's `actions` are ignored |
+| Sign | one transfer per `transfers[]` entry, rebuilt by the app | token = the one you pay (or, on EOS, its A/EOS twin after a conversion); `to` = `swap.alcor`, the order book (`alcordexmain` WAX, `eostokensdex` EOS/Telos, `alcor` XPR), or `core.vaulta` with an empty memo to convert; AMM memo `swapexactin#…#<you>#<min> SYM@contract#0`, order book memo `… SYM@contract\|min`; total ≤ the amount entered; converted tokens spent ≤ converted |
+
+Dry runs on mainnet passed for WAX→TLM, EOS→USDT, A→USDT, TLOS→USDT and XPR→XUSDC. Redirected payouts, extra transfers and foreign destinations were rejected. One WAX route answered with memos for a different USDT contract and was rejected, as it should be.
+
+**Vaulta staking**: `deposit` + `buyrex` (through `core.vaulta`, in A) puts the stake in savings, where it is locked indefinitely. `eosio::mvfrsavings(owner, rex)` starts the 21-day unstaking period, then `sellrex` and `core.vaulta::withdraw`. Source: docs.vaulta.com, Advanced topics → Staking.
+
 ## XPR Network DeFi
 
 | Contract | Actions used | Reads |

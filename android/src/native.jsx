@@ -27,7 +27,7 @@ const NV = (() => {
     qr({ code, scope, table, lower_bound: key, upper_bound: key, limit: 1 }).then((r) => (r.rows || [])[0] || null);
   const blurb = {
     wax: "Voting rewards and genesis WAX: the WAX-only system features.",
-    eos: "REX yield, gift or transfer RAM, and premium-name auctions.",
+    eos: "Staking (REX), gift or transfer RAM, and premium-name auctions.",
     telos: "Vote in Telos Decide, earn staking rewards with REX, and move TLOS to Telos EVM (see Bridges).",
     xpr: "Stake XPR for daily rewards, and withdraw funds from Metal X.",
     libre: "Stake LIBRE for yield, and vote on Libre DAO proposals.",
@@ -135,6 +135,10 @@ function NV_Wax({ me, signedIn, ask, tick }) {
 }
 
 /* ------------------------------------------------------- REX (EOS, Telos) */
+// Vaulta staking (docs.vaulta.com, Advanced topics > Staking): deposit + buyrex locks the
+// stake in "savings"; mvfrsavings starts a 21-day unstaking period; then sellrex + withdraw.
+const REX_UNSTAKE_DAYS = 21;
+
 function NV_Rex({ me, signedIn, ask, tick }) {
   const [d, setD] = De.useState({});
   const [stakeAmt, setStakeAmt] = De.useState("");
@@ -185,11 +189,13 @@ function NV_Rex({ me, signedIn, ask, tick }) {
     ];
   };
   return (
-    <NV_Card title={telos ? "Staking rewards (REX)" : "REX yield"} tag="REX">
+    <NV_Card title={telos ? "Staking rewards (REX)" : V ? "Vaulta staking (REX)" : "REX yield"} tag="REX">
       <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
         {telos
           ? "On Telos, staking rewards are paid through REX. Put TLOS into REX and its value grows over time. You can sell matured REX back to TLOS."
-          : `Lend ${WHCHAIN.sym} to the network's resource market (REX) and earn a share of PowerUp and RAM fees. REX can be sold back once it matures.`}
+          : V
+            ? `Stake ${WHCHAIN.sym} or ${V.sym} to earn the network's staking rewards. You get REX, whose value only goes up. Your stake stays locked until you start unstaking; after ${REX_UNSTAKE_DAYS} days you can sell it and withdraw.`
+            : `Lend ${WHCHAIN.sym} to the network's resource market (REX) and earn a share of PowerUp and RAM fees. REX can be sold back once it matures.`}
       </p>
       {d.pool && (
         <div className="faint" style={{ fontSize: 12, marginBottom: 10 }}>
@@ -218,16 +224,38 @@ function NV_Rex({ me, signedIn, ask, tick }) {
         </div>
       )}
       {signedIn && savings > 0 && (
-        <div className="faint" style={{ fontSize: 12, marginBottom: 8 }}>{NV.fmt(savings * ratio)} {WHCHAIN.sym} is in the REX savings bucket. It only matures after you move it out of savings (Contract console → eosio → mvfrsavings).</div>
+        <div className="kv" style={{ alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 13, textAlign: "left", flex: 1, minWidth: 0 }}>
+            <b>{NV.fmt(savings * ratio)} {WHCHAIN.sym}</b> staked and locked
+            <span className="faint" style={{ display: "block", fontSize: 12, textAlign: "left" }}>
+              {V ? `Unstaking takes ${REX_UNSTAKE_DAYS} days, then you can sell and withdraw.` : "Move it out of savings to start the unstaking period."}
+            </span>
+          </span>
+          <button
+            className="btn sm"
+            style={{ flex: "0 0 auto", marginLeft: 10 }}
+            onClick={() =>
+              ask(
+                "Start unstaking",
+                // Vaulta staking docs: mvfrsavings starts the unstaking period; same day = same bucket
+                [{ account: "eosio", name: "mvfrsavings", data: { owner: me, rex: `${(Math.floor(savings * 1e4) / 1e4).toFixed(4)} REX` } }],
+                [{ label: "Unstake", value: `${(Math.floor(savings * 1e4) / 1e4).toFixed(4)} REX (≈ ${NV.fmt(savings * ratio)} ${WHCHAIN.sym})` }, ...(V ? [{ label: "Ready to sell", value: new Date(Date.now() + REX_UNSTAKE_DAYS * 864e5).toLocaleDateString() }] : [])],
+                `Your REX keeps its value while it matures${V ? ` for ${REX_UNSTAKE_DAYS} days` : ""}, then appears under "sellable now". Sell it, then withdraw.`,
+              )
+            }
+          >
+            Start unstaking
+          </button>
+        </div>
       )}
-      <WH_AmountInput label={V ? `Put ${WHCHAIN.sym} or ${V.sym} into REX` : `Put ${WHCHAIN.sym} into REX`} value={stakeAmt} max={signedIn ? String(spendable) : ""} symbol={V ? V.sym : WHCHAIN.sym} onChange={setStakeAmt} />
+      <WH_AmountInput label={V ? `Stake ${WHCHAIN.sym} or ${V.sym}` : `Put ${WHCHAIN.sym} into REX`} value={stakeAmt} max={signedIn ? String(spendable) : ""} symbol={V ? V.sym : WHCHAIN.sym} onChange={setStakeAmt} />
       {V && signedIn && V.converts && <div className="faint" style={{ fontSize: 11.5, margin: "-4px 0 8px" }}>REX now runs in {V.sym}. You have {NV.fmt(aBal)} {V.sym} and {NV.fmt(liquid)} {WHCHAIN.sym}; any {WHCHAIN.sym} needed is converted 1:1 in the same transaction.</div>}
       {V && !V.converts && <div className="warn">REX on {WHCHAIN.name} now needs {V.sym} test tokens from {V.contract}, and {WHCHAIN.sym} can't be converted here. {signedIn ? `You have ${NV.fmt(aBal)} ${V.sym}.` : ""}</div>}
       <button
         className="btn primary block"
         disabled={!(s > 0) || (signedIn && s > spendable + 1e-9)}
         onClick={() =>
-          ask("Put into REX", lendActs(), [{ label: "Amount", value: qA(s) }, ...(V && s > aBal ? [{ label: "Converted from " + WHCHAIN.sym, value: NV.amt(Math.max(0, s - aBal)) }] : []), { label: "Receive", value: ratio ? `≈ ${NV.fmt(s / ratio)} REX` : "REX" }], "REX can only be sold after it matures.")
+          ask(V ? "Stake" : "Put into REX", lendActs(), [{ label: "Amount", value: qA(s) }, ...(V && s > aBal ? [{ label: "Converted from " + WHCHAIN.sym, value: NV.amt(Math.max(0, s - aBal)) }] : []), { label: "Receive", value: ratio ? `≈ ${NV.fmt(s / ratio)} REX` : "REX" }], V ? `Your stake is locked until you choose to unstake; unstaking then takes ${REX_UNSTAKE_DAYS} days.` : "REX can only be sold after it matures.")
         }
       >
         Review

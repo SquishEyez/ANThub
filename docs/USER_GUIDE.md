@@ -92,6 +92,7 @@ Balances with USD values, plus send and receive. You'll also find staking (CPU/N
 | **Contract console** | Use any contract directly (see section 5) |
 | **Creator studio** | NFT collections, schemas, templates, minting, drops and blends (AtomicAssets) |
 | **Packs** (WAX) | Your unopened AtomicHub, NeftyBlocks and NFTHive packs, with an Open button, plus reveals waiting to be claimed |
+| **Swap** (WAX, EOS, Telos, XPR) | Best price for any token across Alcor's pools and order books, with the minimum you'll receive shown before you sign |
 | **DEX & swaps, WAXDAO** | Where the network has them |
 | **Chain tools** | Vote for producers, PowerUp, account and resources, history, portfolio, QR codes, watch list, claim links |
 
@@ -233,7 +234,7 @@ The **Approve a multisig proposal** task approves a proposal someone else create
 
 ## 8. Network notes
 - **WAX:** My Cloud Wallet or Anchor. Claim voting rewards once every 24 hours if you vote.
-- **EOS (Vaulta):** EOS was rebranded to Vaulta (token **A**). REX lending and REX withdrawals run in **A**; the app converts EOS for you. A new account needs RAM (4 KB), and the app includes it. New accounts need CPU: use **PowerUp**.
+- **EOS (Vaulta):** EOS was rebranded to Vaulta (token **A**). Staking (REX) runs in **A**, and the app converts EOS for you. A stake stays locked until you tap **Start unstaking**; 21 days later you can sell it and withdraw. A new account needs RAM (4 KB), and the app includes it. New accounts need CPU: use **PowerUp**.
 - **Telos:**
   - Voting uses **VOTE**, which comes from staked TLOS. Register once (the app does this on your first vote).
   - Ballot fees (10 TLOS) and token fees (20 TLOS) come from your Decide deposit. Withdraw any leftovers in **Telos studio → Deposits**.

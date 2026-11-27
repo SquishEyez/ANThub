@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0: Best-price swaps, Vaulta staking
+
+Checked against the current developer documentation of each network and service (November 2026).
+
+- **New Swap tool** (WAX, EOS, Telos, XPR Network), built on Alcor's Swap route v3. Pick what you pay and what you get, and the app shows the best route across Alcor's pools and order books, split over several paths when that pays more. You see the expected amount, the guaranteed minimum, the price impact and the route before you sign, and the whole swap is refused if the price moves past your slippage (0.3–3%).
+  - The token list comes from Alcor's current API (api.alcor.exchange), with USD prices; tokens Alcor flags as scams are hidden.
+  - On EOS, routes can convert EOS ⇄ A through core.vaulta on the way.
+  - The app never signs Alcor's answer as it is. It rebuilds each transfer and checks it: your token, to swap.alcor or Alcor's order book (or core.vaulta to convert), paying you the token you chose, and no more than you entered.
+  - More → Quick actions → "Swap tokens" now opens it. The old pool-by-pool DEX tool stays for Taco, NeftyBlocks and Defibox.
+- **Vaulta staking** (EOS essentials): following Vaulta's staking docs, the card explains that a stake stays locked until you unstake, and adds a **Start unstaking** button (`mvfrsavings`). After 21 days you sell and withdraw as before.
+- Checked and unchanged: the app uses no deprecated Alcor endpoints (its bridge API is current), and every contract action still matches the live contracts.
+
 ## 1.2.1: Metal X on every device
 
 - **Metal X works even when its server can't be reached.** Metal X's API uses a certificate that chains to "SSL.com TLS RSA Root CA 2022", which older devices (Android 13 and earlier) don't trust, so the app couldn't connect there. No Metal X account or setup was ever needed. When the API fails, the app now reads everything from the blockchain instead:

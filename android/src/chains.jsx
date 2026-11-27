@@ -17,6 +17,7 @@ const WHGATE = (() => {
     telosstudio: WHCHAIN.key === "telos",
     alcorx: ["wax", "eos", "telos", "xpr"].includes(WHCHAIN.key),
     xprdefi: WHCHAIN.key === "xpr",
+    alcorswap: ["wax", "eos", "telos", "xpr"].includes(WHCHAIN.key) && H("swap.alcor"),
     dao: H("dao.waxdao") || H("farms.waxdao") || H("tf.waxdao"),
     dex: H("swap.alcor") || H("alcordexmain") || H("swap.taco") || H("swap.box") || H("swap.nefty"),
     packs: H("atomicpacksx") || H("neftyblocksp") || H("nfthivepacks"),
