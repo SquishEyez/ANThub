@@ -181,6 +181,27 @@ const WH = (() => {
   function recents() {
     return load("recents", []);
   }
+  // Instant finality (Savanna: Telos and EOS finalise about a second after inclusion).
+  // Once the transaction's block is irreversible, say so. Chains whose last irreversible
+  // block lags far behind (WAX, XPR, Libre) are skipped: the note would come minutes later.
+  const FINAL_MAX_LAG = 20; // blocks
+  async function watchFinal(res) {
+    try {
+      const block = Number(res?.response?.processed?.block_num || 0);
+      if (!block) return;
+      for (let i = 0; i < 16; i++) {
+        await new Promise((ok) => setTimeout(ok, 500));
+        const info = await r0("/v1/chain/get_info", {});
+        const lib = Number(info.last_irreversible_block_num);
+        if (i === 0 && Number(info.head_block_num) - lib > FINAL_MAX_LAG) return;
+        if (lib >= block) {
+          toastFn && toastFn("Final ✓ This transaction can no longer be reversed.", "success");
+          return;
+        }
+      }
+    } catch {}
+  }
+
   function afterTx(actions) {
     try {
       const to = actions
@@ -233,7 +254,7 @@ const WH = (() => {
 
   return {
     trimAsset, load, save, copy, txUrl, accountUrl, checkAccountName, friendly, nav, takeSub,
-    useBack, afterTx, recents, useWaxUsd, fmtUsd,
+    useBack, afterTx, watchFinal, recents, useWaxUsd, fmtUsd,
     setSub: (sub) => (pendingSub = sub),
     setScreenBack: (fn) => (screenHandler = fn),
     setToast: (fn) => (toastFn = fn),

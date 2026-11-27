@@ -238,6 +238,9 @@ The **Approve a multisig proposal** task approves a proposal someone else create
 - **Telos:**
   - Voting uses **VOTE**, which comes from staked TLOS. Register once (the app does this on your first vote).
   - Ballot fees (10 TLOS) and token fees (20 TLOS) come from your Decide deposit. Withdraw any leftovers in **Telos studio → Deposits**.
+  - Telos ended REX staking rewards in 2026 (the Zero-Inflation Era). REX you hold keeps its value; sell it once it matures.
+  - Transactions are final about a second after they're included (instant finality, since July 2026). The app shows **Final ✓** when yours is.
+  - **Telos Privacy** (private TLOS and USDC on Telos EVM) is used in zkWallet; see **Telos essentials → New on Telos**.
 - **XPR Network:**
   - No transaction fees.
   - Vote for **exactly 4** producers, or you get no staking rewards. The vote tool enforces this.

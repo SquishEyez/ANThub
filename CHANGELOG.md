@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1: What's new on Telos, instant finality
+
+- **"Final ✓"**: on networks with instant finality (Telos and EOS: final about a second after inclusion), the app now tells you when your transaction can no longer be reversed. Networks whose finality takes minutes (WAX, XPR, Libre) don't show it.
+- **Telos REX**: Telos ended REX staking rewards in 2026 (Zero-Inflation Era: 600,000 TLOS a month → 0). The REX card now says so, instead of promising rewards.
+- **New on Telos** (Telos essentials): Telos Privacy and zkWallet (private TLOS and USDC on Telos EVM; its pools are being upgraded, and Tungsten is the next version), instant finality, zero inflation, and Teloswap.
+
 ## 1.3.0: Best-price swaps, Vaulta staking
 
 Checked against the current developer documentation of each network and service (November 2026).

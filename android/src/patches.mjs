@@ -30,6 +30,7 @@ export const replace = [
     `  return t.transact({ actions: a }, { expireSeconds: 120 });`,
     `  const res = await t.transact({ actions: a }, { expireSeconds: 120 });
   WH.afterTx(a);
+  WH.watchFinal(res);
   return res;`,
   ],
 
@@ -718,7 +719,7 @@ export const replace = [
   [`                          children: B.net_weight || "—",`, `                          children: B.net_weight ? WH.trimAsset(B.net_weight) : "—",`],
 
   /* ================================================== Multi-chain */
-  [`z9 = "2.1",`, `z9 = "1.3.0",`],
+  [`z9 = "2.1",`, `z9 = "1.3.1",`],
   // Cloud Wallet only exists on WAX; Anchor covers every chain
   [
     `      walletPlugins: [
@@ -973,7 +974,7 @@ export const replace = [
     blurb: {
       wax: "Claim voting rewards and genesis WAX",
       eos: "Staking (REX), gift or transfer RAM, premium-name auctions",
-      telos: "Earn staking rewards with REX",
+      telos: "Telos Decide votes, REX, and what's new on Telos",
       xpr: "Stake XPR for rewards, withdraw from Metal X",
       libre: "Stake LIBRE for yield, vote in the Libre DAO",
       jungle4: "Practise REX, RAM gifting and name bids",

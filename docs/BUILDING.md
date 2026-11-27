@@ -16,9 +16,9 @@ Antelope Hub is built from the original **WAX Hub 2.0** Android APK (`android/ba
 ```
 
 Outputs:
-- `android/dist/antelope-hub-1.3.0-unsigned.apk` (sign it, see below)
+- `android/dist/antelope-hub-1.3.1-unsigned.apk` (sign it, see below)
 - `android/dist/web/`: the web bundle, which you can serve with any static server (`python3 -m http.server -d android/dist/web`) to test in a browser
-- `desktop/release/antelope-hub-1.3.0-x86_64.AppImage` and `desktop/release/antelope-hub-1.3.0-amd64.deb`
+- `desktop/release/antelope-hub-1.3.1-x86_64.AppImage` and `desktop/release/antelope-hub-1.3.1-amd64.deb`
 
 Android only: `cd android && npm ci && npm run build` (or `npm run build:web` for just the web bundle). `npm ci` installs the exact versions in `package-lock.json`, including the WebAuth wallet plugin that goes into the app.
 
@@ -29,7 +29,7 @@ Android only: `cd android && npm ci && npm run build` (or `npm run build:web` fo
 3. Rewrite WAX-only values (symbols, precision, explorers) so they follow the active network (`chainify.mjs`).
 4. Inject `src/chain.js` (the network registry), then compile and inject the feature layer: every `src/*.jsx`, plus `src/alcorcheck.js`, and XPR Network's WebAuth wallet plugin (`@proton/wharfkit-plugin-webauth`, bundled as `WHWebAuth`).
 5. Minify, and add `src/ext.css`.
-6. Rebrand. `brand.py` redraws icons and splash screens, `arsc.py` sets the launcher label, and `axml.py` sets the version from `android/package.json` (`version` 1.3.0, `androidVersionCode` 18).
+6. Rebrand. `brand.py` redraws icons and splash screens, `arsc.py` sets the launcher label, and `axml.py` sets the version from `android/package.json` (`version` 1.3.1, `androidVersionCode` 19).
 7. Repack the APK, keeping every entry's original compression (`repack.py`). WebView debugging and plain-HTTP traffic stay disabled.
 
 ### Source files (`android/src/`)

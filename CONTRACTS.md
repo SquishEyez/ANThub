@@ -172,6 +172,20 @@ Dry runs on mainnet passed for WAX→TLM, EOS→USDT, A→USDT, TLOS→USDT and 
 
 **Vaulta staking**: `deposit` + `buyrex` (through `core.vaulta`, in A) puts the stake in savings, where it is locked indefinitely. `eosio::mvfrsavings(owner, rex)` starts the 21-day unstaking period, then `sellrex` and `core.vaulta::withdraw`. Source: docs.vaulta.com, Advanced topics → Staking.
 
+## Telos (November 2026)
+
+Sources: telos.net blog and docs.telos.net (github.com/telosnetwork/telos-docs).
+
+- **Instant finality**: Telos switched to Savanna on July 27, 2026, with 1-second finality. EOS and Jungle 4 also run with a last-irreversible-block (LIB) lag of 2 blocks. WAX (about 85 blocks), XPR and Libre (over 300) don't. After a transaction, the app polls `get_info` until `last_irreversible_block_num` reaches the transaction's `processed.block_num`, but only when the LIB lag is 20 blocks or fewer.
+- **Zero-Inflation Era**: staking rewards went from 600,000 TLOS a month to 0. Only small RAM fees still flow into `eosio.rex` (from `eosio.ramfee`), and `eosio.tedp` is idle.
+- **Telos Privacy (zkTelos, adapted from zkBob)**, on Telos EVM (chain 40). The WTLOS pool (id 40001) is `0xB5340818eE78D6221f631495346E2e55DA5BcA58`, with DirectDepositQueue `0xA2F29aE1f0f65cB7f88E90dDAc031aD2702c7720`. The USDC.e pool (40002) is `0xe47A4F0099cA16d61C678Dc75911F91e11deDAa3`, with queue `0xb3d18CD9891A403e4451385685037fA61e83af51`. Direct deposit fee: 5 TLOS / 0.2 USDC.e. zkWallet is offline while the pools are upgraded (November 2026), so the app only links to it for now.
+  - **Planned "Shield TLOS from a Telos account"**, checked by dry run and `eth_estimateGas`, not shipped yet:
+    1. One Antelope transaction from the native account: `eosio.evm::raw(ram_payer, tx, false, sender = linked address)`, where `tx` is an RLP legacy transaction (EIP-155, chain id 40). It calls `directNativeDeposit(address fallbackUser, string zkAddress)` with `value` = the amount. The queue wraps TLOS itself.
+    2. Gas is about 850k (about 4.5 TLOS at about 5,250 gwei), from the `eosio.evm` `config.gas_price`. Nonce and balance come from `eosio.evm` `account` (index 3 = native account).
+    3. zk-addresses are base58(diversifier 10 bytes ‖ pk 32 bytes ‖ checksum 4 bytes), with checksum = keccak256(first 42 bytes)[0:4]. The queue checks it on-chain (custom error `0xfc5394a4` otherwise).
+    4. **Important:** a reverted EVM call does *not* fail the Antelope transaction. It's recorded as a failed EVM transaction, and gas and nonce are used. So the deposit must be simulated with `eth_estimateGas` (Telos EVM RPC) before signing.
+- **Also new**: Teloswap (Uniswap v3 on Telos EVM, swap.telos.net); TelosZero Core 1.2.2; SNARKtor (proof aggregation) and the zkEVM L2 are for developers; Tungsten (STARK-based privacy) is in development.
+
 ## XPR Network DeFi
 
 | Contract | Actions used | Reads |

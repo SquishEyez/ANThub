@@ -28,7 +28,7 @@ const NV = (() => {
   const blurb = {
     wax: "Voting rewards and genesis WAX: the WAX-only system features.",
     eos: "Staking (REX), gift or transfer RAM, and premium-name auctions.",
-    telos: "Vote in Telos Decide, earn staking rewards with REX, and move TLOS to Telos EVM (see Bridges).",
+    telos: "What's new on Telos, Telos Decide votes, and REX.",
     xpr: "Stake XPR for daily rewards, and withdraw funds from Metal X.",
     libre: "Stake LIBRE for yield, and vote on Libre DAO proposals.",
     jungle4: "Practise REX, RAM gifting and name bids with free test tokens.",
@@ -83,6 +83,7 @@ function WH_Native({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
       <p className="sub">{NV.blurb}</p>
       {!t && <div className="warn">Sign in to see your balances here and to make changes.</div>}
       {NV.has.wax && <NV_Wax {...p} />}
+      {WHCHAIN.key === "telos" && <NV_TelosNew />}
       {WHCHAIN.key === "telos" && <NV_TelosDecide {...p} />}
       {NV.has.rex && <NV_Rex {...p} />}
       {NV.has.ram && <NV_Ram {...p} />}
@@ -93,6 +94,47 @@ function WH_Native({ session: t, onNeedLogin: e, toast: r, onBack: n }) {
       {NV.has.libre && <NV_LibreDao {...p} />}
       <WH_Confirm open={!!confirm} title={confirm?.title || ""} details={confirm?.details || []} warning={confirm?.warning} busy={busy} onClose={() => !busy && setConfirm(null)} onConfirm={run} />
     </>
+  );
+}
+
+/* What's new on Telos (telos.net blog and docs.telos.net, November 2026) */
+const NV_ITEM = { padding: "8px 0", borderTop: "1px solid rgba(127,127,127,.18)", textAlign: "left" };
+
+function NV_TelosNew() {
+  const link = (href, label) => (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {label}
+    </a>
+  );
+  return (
+    <NV_Card title="New on Telos" tag="2026">
+      <div style={NV_ITEM}>
+        <div>
+          <b>Telos Privacy</b>
+          <div className="faint" style={{ fontSize: 12.5, marginTop: 2 }}>
+            Private TLOS and USDC transfers on Telos EVM, in {link("https://zkwallet.telos.net", "zkWallet")}. Move TLOS to an EVM address first (Bridges → Telos EVM). The privacy pools are being upgraded (November 2026), so zkWallet may be offline for now; Tungsten, the next version, is in development.
+          </div>
+        </div>
+      </div>
+      <div style={NV_ITEM}>
+        <div>
+          <b>Instant finality</b>
+          <div className="faint" style={{ fontSize: 12.5, marginTop: 2 }}>Since July 27, 2026 a Telos transaction is final about a second after it's included. The app now tells you when yours is final.</div>
+        </div>
+      </div>
+      <div style={NV_ITEM}>
+        <div>
+          <b>Zero inflation</b>
+          <div className="faint" style={{ fontSize: 12.5, marginTop: 2 }}>Staking rewards and other standing emissions ended; block producer pay is the only issuance left.</div>
+        </div>
+      </div>
+      <div style={NV_ITEM}>
+        <div>
+          <b>Teloswap</b>
+          <div className="faint" style={{ fontSize: 12.5, marginTop: 2 }}>Uniswap v3 on Telos EVM at {link("https://swap.telos.net", "swap.telos.net")}. For native TLOS, use More → Swap (Alcor).</div>
+        </div>
+      </div>
+    </NV_Card>
   );
 }
 
@@ -189,10 +231,10 @@ function NV_Rex({ me, signedIn, ask, tick }) {
     ];
   };
   return (
-    <NV_Card title={telos ? "Staking rewards (REX)" : V ? "Vaulta staking (REX)" : "REX yield"} tag="REX">
+    <NV_Card title={telos ? "REX" : V ? "Vaulta staking (REX)" : "REX yield"} tag="REX">
       <p className="muted" style={{ fontSize: 13, margin: "0 0 10px" }}>
         {telos
-          ? "On Telos, staking rewards are paid through REX. Put TLOS into REX and its value grows over time. You can sell matured REX back to TLOS."
+          ? "Telos ended REX staking rewards in 2026 (the Zero-Inflation Era: staking rewards went from 600,000 TLOS a month to zero). REX now grows only from small network fees such as RAM fees. REX you already hold keeps its value: sell it once it matures, then withdraw."
           : V
             ? `Stake ${WHCHAIN.sym} or ${V.sym} to earn the network's staking rewards. You get REX, whose value only goes up. Your stake stays locked until you start unstaking; after ${REX_UNSTAKE_DAYS} days you can sell it and withdraw.`
             : `Lend ${WHCHAIN.sym} to the network's resource market (REX) and earn a share of PowerUp and RAM fees. REX can be sold back once it matures.`}
